@@ -49,7 +49,7 @@ jobs:
       - run: docker build -t abe .
       - run: |
           cp python/abe/templates/starter.yaml abe-policy.yaml
-          docker run -d --name g -e ABE_TOKEN=t -v "$PWD:/policy:ro" -p 127.0.0.1:8787:8787 abe
+          docker run -d --name abe-smoke -e ABE_TOKEN=t -v "$PWD:/policy:ro" -p 127.0.0.1:8787:8787 abe
           for i in $(seq 1 20); do curl -fs http://127.0.0.1:8787/healthz && break; sleep 1; done
           curl -fs -H 'Authorization: Bearer t' -d '{"action":{"type":"wire_transfer","amount":50000},"context":{"agent_id":"finance-agent"}}' \
             http://127.0.0.1:8787/v1/check | grep -q '"FINANCIAL_THRESHOLD_EXCEEDED"'
