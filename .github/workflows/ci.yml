@@ -1,0 +1,55 @@
+name: ci
+on:
+  push: { branches: [main] }
+  pull_request:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: { python: ["3.10", "3.11", "3.12", "3.13"] }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "${{ matrix.python }}" }
+      - run: pip install -e "python[dev,mcp]" -e flow-resolver
+      - run: pytest -q python/tests flow-resolver/tests
+      - run: abe conformance --bench
+
+  typescript:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: { node: [18, 20, 22] }
+    defaults: { run: { working-directory: typescript } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ matrix.node }}" }
+      - run: npm ci
+      - run: npm test
+      - run: node dist/cli.js conformance
+
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: pip install -e "python[signing]"
+      - run: cd typescript && npm ci && npm run build
+      - run: python scripts/sync_fixtures.py --check
+      - run: python scripts/cross_language_check.py
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t abe .
+      - run: |
+          cp python/abe/templates/starter.yaml abe-policy.yaml
+          docker run -d --name g -e ABE_TOKEN=t -v "$PWD:/policy:ro" -p 127.0.0.1:8787:8787 abe
+          for i in $(seq 1 20); do curl -fs http://127.0.0.1:8787/healthz && break; sleep 1; done
+          curl -fs -H 'Authorization: Bearer t' -d '{"action":{"type":"wire_transfer","amount":50000},"context":{"agent_id":"finance-agent"}}' \
+            http://127.0.0.1:8787/v1/check | grep -q '"FINANCIAL_THRESHOLD_EXCEEDED"'
