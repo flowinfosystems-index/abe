@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+node_modules/
+typescript/dist/
+*.db
+*.jsonl
+abe-signing-key.pem
+.env
