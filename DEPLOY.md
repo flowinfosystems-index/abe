@@ -14,7 +14,7 @@ as they are today.
 
 | Registry | Name | How |
 |---|---|---|
-| PyPI | `abe-ai`, `abe-flow` | pypi.org → Publishing → *Add a pending publisher*: owner `flowinfosystems-index`, repo `abe-ai`, workflow `release.yml`, environment `pypi`. Do it for both names. |
+| PyPI | `abe-ai`, `abe-flow` | pypi.org → Publishing → *Add a pending publisher*: owner `flowinfosystems-index`, repo `abe`, workflow `release.yml`, environments `pypi` (abe-ai) and `pypi-flow` (abe-flow). Do it for both names. |
 | npm | `abe-ai` | npmjs.com → create organization **`abe`** (free for public packages). Create an automation token → repo secret `NPM_TOKEN`. |
 | GHCR | `ghcr.io/flowinfosystems-index/abe` | nothing to do; the workflow uses `GITHUB_TOKEN`. |
 
