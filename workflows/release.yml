@@ -1,0 +1,63 @@
+# Tag vX.Y.Z to publish abe-ai + abe-flow (PyPI, trusted publishing), abe-ai (npm), and the Docker image.
+name: release
+on:
+  push: { tags: ["v*"] }
+
+permissions:
+  contents: read
+
+jobs:
+  pypi:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions: { id-token: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install build && python scripts/sync_fixtures.py --check
+      - run: python -m build python --outdir dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with: { skip-existing: true }   # a release may bump only some packages
+
+  pypi-flow:
+    needs: pypi          # abe-flow depends on abe-ai, so publish abe-ai first
+    runs-on: ubuntu-latest
+    environment: pypi-flow
+    permissions: { id-token: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install build
+      - run: python -m build flow-resolver --outdir dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with: { skip-existing: true }
+
+  npm:
+    runs-on: ubuntu-latest
+    permissions: { id-token: write }
+    defaults: { run: { working-directory: typescript } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, registry-url: "https://registry.npmjs.org" }
+      - run: npm ci && npm test
+      - run: |
+          V=$(node -p "require('./package.json').version")
+          if npm view "abe-ai@$V" version >/dev/null 2>&1; then echo "abe-ai@$V already on npm; skipping"; else npm publish --access public --provenance; fi
+        env: { NODE_AUTH_TOKEN: "${{ secrets.NPM_TOKEN }}" }
+
+  docker:
+    runs-on: ubuntu-latest
+    permissions: { packages: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with: { registry: ghcr.io, username: "${{ github.actor }}", password: "${{ secrets.GITHUB_TOKEN }}" }
+      - uses: docker/build-push-action@v6
+        with:
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/abe:${{ github.ref_name }}
+            ghcr.io/${{ github.repository_owner }}/abe:latest

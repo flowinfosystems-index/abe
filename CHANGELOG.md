@@ -1,5 +1,10 @@
 # Changelog
 
+## abe-flow 0.1.1 — 2026-09-29
+
+- Verify TLS with certifi's CA bundle, so calls to Flow work on python.org builds for macOS without running
+  "Install Certificates.command" (previously: CERTIFICATE_VERIFY_FAILED, safely staying ESCALATE).
+
 ## 0.1.0 — 2026-09-29
 
 First release of Abe, the reference implementation of Abe.

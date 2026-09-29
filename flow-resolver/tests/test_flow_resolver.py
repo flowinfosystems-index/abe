@@ -131,3 +131,13 @@ def test_report_outcome():
     assert fake.calls[0][0].endswith("/api/v1/outcome")
     with pytest.raises(ValueError):
         res.report_outcome("call_123", "GREAT")
+
+
+def test_tls_uses_certifi_bundle(monkeypatch):
+    import ssl
+    from abe_flow import _ssl_context
+    monkeypatch.delenv("SSL_CERT_FILE", raising=False)
+    monkeypatch.delenv("SSL_CERT_DIR", raising=False)
+    ctx = _ssl_context()
+    assert ctx.verify_mode == ssl.CERT_REQUIRED and ctx.check_hostname
+    assert ctx.cert_store_stats()["x509_ca"] > 50      # a real CA bundle was loaded

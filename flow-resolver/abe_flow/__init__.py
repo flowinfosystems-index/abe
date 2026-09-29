@@ -28,13 +28,14 @@ import hashlib
 import json
 import os
 import re
+import ssl
 import urllib.error
 import urllib.request
 from typing import Callable, Iterable
 
 from abe import Resolution
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 DEFAULT_BASE_URL = "https://resolve.flowinfo.co"
 VERB_TO_DECISION = {"REACH": "ACT", "SKIP": "BLOCK", "WAIT": "ESCALATE", "RESEARCH_FIRST": "ESCALATE",
@@ -75,10 +76,26 @@ def redact(value, keys: Iterable[str]):
 Transport = Callable[[str, dict, bytes, float], tuple[int, bytes]]
 
 
+def _ssl_context() -> ssl.SSLContext:
+    """Verify TLS with certifi's CA bundle when available.
+
+    python.org builds on macOS ship without system CA certificates, so the default context fails with
+    CERTIFICATE_VERIFY_FAILED until "Install Certificates.command" is run. certifi (a dependency) avoids that.
+    SSL_CERT_FILE / SSL_CERT_DIR, if set, still take precedence.
+    """
+    if os.environ.get("SSL_CERT_FILE") or os.environ.get("SSL_CERT_DIR"):
+        return ssl.create_default_context()
+    try:
+        import certifi  # noqa: PLC0415
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:  # pragma: no cover
+        return ssl.create_default_context()
+
+
 def _urllib_transport(url: str, headers: dict, body: bytes, timeout: float) -> tuple[int, bytes]:
     req = urllib.request.Request(url, data=body, headers=headers, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 - https base URL enforced
+        with urllib.request.urlopen(req, timeout=timeout, context=_ssl_context()) as resp:  # noqa: S310
             return resp.status, resp.read(MAX_RESPONSE + 1)
     except urllib.error.HTTPError as e:
         return e.code, e.read(MAX_RESPONSE + 1)
