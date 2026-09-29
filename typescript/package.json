@@ -1,0 +1,27 @@
+{
+  "name": "abe-ai",
+  "version": "0.1.0",
+  "description": "Abe: one control point before an AI agent acts. Deterministic ACT / BLOCK / ESCALATE with an immutable Judgment-Grounded Record. Local, offline, no account.",
+  "license": "Apache-2.0",
+  "author": "Flow Information Systems <flowinfosystems@gmail.com>",
+  "homepage": "https://fjp.flowinfo.co/abe",
+  "repository": { "type": "git", "url": "git+https://github.com/flowinfosystems-index/abe.git", "directory": "typescript" },
+  "keywords": ["ai-agents", "guardrails", "policy", "audit", "abe", "fjp", "agent-safety"],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./package.json": "./package.json"
+  },
+  "bin": { "abe": "./dist/cli.js" },
+  "files": ["dist", "fixtures", "templates", "README.md", "LICENSE", "NOTICE"],
+  "engines": { "node": ">=18.17" },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json && chmod +x dist/cli.js",
+    "test": "npm run build && node --test test/gate.test.mjs",
+    "prepublishOnly": "npm test"
+  },
+  "dependencies": { "yaml": "^2.5.0" },
+  "devDependencies": { "typescript": "^5.6.0", "@types/node": "^20.0.0" }
+}

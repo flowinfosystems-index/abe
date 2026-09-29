@@ -1,0 +1,548 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fjp.flowinfo.co/schemas/v0.1/fjp-policy.schema.json",
+  "title": "Abe v0.1 policy",
+  "description": "Structural schema. Implementations additionally reject duplicate rule ids, YAML aliases and duplicate keys, and type-check operator values.",
+  "type": "object",
+  "required": [
+    "version"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "cond": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "all"
+          ],
+          "properties": {
+            "all": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/cond"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "any"
+          ],
+          "properties": {
+            "any": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/cond"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "not"
+          ],
+          "properties": {
+            "not": {
+              "$ref": "#/$defs/cond"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "field",
+            "op"
+          ],
+          "properties": {
+            "field": {
+              "type": "string",
+              "pattern": "^(actor|action|context|evidence|risk|irreversibility|confidence|metadata)(\\.[A-Za-z0-9_-]+)*$"
+            },
+            "op": {
+              "enum": [
+                "eq",
+                "neq",
+                "gt",
+                "gte",
+                "lt",
+                "lte",
+                "in",
+                "not_in",
+                "exists",
+                "not_exists",
+                "contains"
+              ]
+            },
+            "value": {}
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "properties": {
+    "version": {
+      "const": "0.1"
+    },
+    "policy_id": {
+      "type": "string"
+    },
+    "policy_version": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "unmatched": {
+          "enum": [
+            "ACT",
+            "BLOCK",
+            "ESCALATE"
+          ]
+        },
+        "unmatched_reason_code": {
+          "type": "string",
+          "anyOf": [
+            {
+              "enum": [
+                "POLICY_SATISFIED",
+                "HARD_POLICY_VIOLATION",
+                "AUTHORIZATION_FAILED",
+                "EVIDENCE_MISSING",
+                "RISK_THRESHOLD_EXCEEDED",
+                "FINANCIAL_THRESHOLD_EXCEEDED",
+                "HIGH_CONSEQUENCE_ACTION",
+                "HIGH_IRREVERSIBILITY",
+                "INSUFFICIENT_CONFIDENCE",
+                "CONFLICTING_RULES",
+                "USER_CONFIRMATION_REQUIRED",
+                "HUMAN_APPROVAL_REQUIRED",
+                "JUDGMENT_REQUIRED",
+                "EVALUATION_FAILURE"
+              ]
+            },
+            {
+              "pattern": "^[a-z][a-z0-9_-]{0,63}\\.[a-z0-9][a-z0-9_.-]{0,127}$"
+            }
+          ]
+        }
+      }
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "enum": [
+            "allow",
+            "deny"
+          ]
+        },
+        "agents": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "allow": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "deny": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "rules": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "when",
+          "decision"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+          },
+          "description": {
+            "type": "string"
+          },
+          "when": {
+            "$ref": "#/$defs/cond"
+          },
+          "decision": {
+            "enum": [
+              "ACT",
+              "BLOCK",
+              "ESCALATE"
+            ]
+          },
+          "reason_code": {
+            "type": "string",
+            "anyOf": [
+              {
+                "enum": [
+                  "POLICY_SATISFIED",
+                  "HARD_POLICY_VIOLATION",
+                  "AUTHORIZATION_FAILED",
+                  "EVIDENCE_MISSING",
+                  "RISK_THRESHOLD_EXCEEDED",
+                  "FINANCIAL_THRESHOLD_EXCEEDED",
+                  "HIGH_CONSEQUENCE_ACTION",
+                  "HIGH_IRREVERSIBILITY",
+                  "INSUFFICIENT_CONFIDENCE",
+                  "CONFLICTING_RULES",
+                  "USER_CONFIRMATION_REQUIRED",
+                  "HUMAN_APPROVAL_REQUIRED",
+                  "JUDGMENT_REQUIRED",
+                  "EVALUATION_FAILURE"
+                ]
+              },
+              {
+                "pattern": "^[a-z][a-z0-9_-]{0,63}\\.[a-z0-9][a-z0-9_.-]{0,127}$"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "risk": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "defaults": {
+          "type": "object",
+          "properties": {
+            "level": {
+              "enum": [
+                "LOW",
+                "MEDIUM",
+                "HIGH",
+                "CRITICAL"
+              ]
+            }
+          },
+          "required": [
+            "level"
+          ],
+          "additionalProperties": false
+        },
+        "mappings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "when",
+              "level"
+            ],
+            "properties": {
+              "when": {
+                "$ref": "#/$defs/cond"
+              },
+              "level": {
+                "enum": [
+                  "LOW",
+                  "MEDIUM",
+                  "HIGH",
+                  "CRITICAL"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "escalate_at": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "CRITICAL"
+            ]
+          }
+        },
+        "block_at": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "CRITICAL"
+            ]
+          }
+        }
+      }
+    },
+    "irreversibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "defaults": {
+          "type": "object",
+          "properties": {
+            "level": {
+              "enum": [
+                "LOW",
+                "MEDIUM",
+                "HIGH",
+                "CRITICAL"
+              ]
+            }
+          },
+          "required": [
+            "level"
+          ],
+          "additionalProperties": false
+        },
+        "mappings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "when",
+              "level"
+            ],
+            "properties": {
+              "when": {
+                "$ref": "#/$defs/cond"
+              },
+              "level": {
+                "enum": [
+                  "LOW",
+                  "MEDIUM",
+                  "HIGH",
+                  "CRITICAL"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "escalate_at": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "CRITICAL"
+            ]
+          }
+        },
+        "block_at": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "CRITICAL"
+            ]
+          }
+        }
+      }
+    },
+    "evidence_requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "require"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "when": {
+            "$ref": "#/$defs/cond"
+          },
+          "require": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          },
+          "missing_decision": {
+            "enum": [
+              "BLOCK",
+              "ESCALATE"
+            ]
+          },
+          "reason_code": {
+            "type": "string",
+            "anyOf": [
+              {
+                "enum": [
+                  "POLICY_SATISFIED",
+                  "HARD_POLICY_VIOLATION",
+                  "AUTHORIZATION_FAILED",
+                  "EVIDENCE_MISSING",
+                  "RISK_THRESHOLD_EXCEEDED",
+                  "FINANCIAL_THRESHOLD_EXCEEDED",
+                  "HIGH_CONSEQUENCE_ACTION",
+                  "HIGH_IRREVERSIBILITY",
+                  "INSUFFICIENT_CONFIDENCE",
+                  "CONFLICTING_RULES",
+                  "USER_CONFIRMATION_REQUIRED",
+                  "HUMAN_APPROVAL_REQUIRED",
+                  "JUDGMENT_REQUIRED",
+                  "EVALUATION_FAILURE"
+                ]
+              },
+              {
+                "pattern": "^[a-z][a-z0-9_-]{0,63}\\.[a-z0-9][a-z0-9_.-]{0,127}$"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "required": [
+        "minimum_to_act"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "minimum_to_act": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "below_minimum": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "decision": {
+              "enum": [
+                "BLOCK",
+                "ESCALATE"
+              ]
+            },
+            "reason_code": {
+              "type": "string",
+              "anyOf": [
+                {
+                  "enum": [
+                    "POLICY_SATISFIED",
+                    "HARD_POLICY_VIOLATION",
+                    "AUTHORIZATION_FAILED",
+                    "EVIDENCE_MISSING",
+                    "RISK_THRESHOLD_EXCEEDED",
+                    "FINANCIAL_THRESHOLD_EXCEEDED",
+                    "HIGH_CONSEQUENCE_ACTION",
+                    "HIGH_IRREVERSIBILITY",
+                    "INSUFFICIENT_CONFIDENCE",
+                    "CONFLICTING_RULES",
+                    "USER_CONFIRMATION_REQUIRED",
+                    "HUMAN_APPROVAL_REQUIRED",
+                    "JUDGMENT_REQUIRED",
+                    "EVALUATION_FAILURE"
+                  ]
+                },
+                {
+                  "pattern": "^[a-z][a-z0-9_-]{0,63}\\.[a-z0-9][a-z0-9_.-]{0,127}$"
+                }
+              ]
+            }
+          }
+        },
+        "when_missing": {
+          "enum": [
+            "ignore",
+            "escalate"
+          ]
+        }
+      }
+    },
+    "judgment_required": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "minProperties": 1
+      }
+    },
+    "resolver": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "not_resolvable": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "anyOf": [
+              {
+                "enum": [
+                  "POLICY_SATISFIED",
+                  "HARD_POLICY_VIOLATION",
+                  "AUTHORIZATION_FAILED",
+                  "EVIDENCE_MISSING",
+                  "RISK_THRESHOLD_EXCEEDED",
+                  "FINANCIAL_THRESHOLD_EXCEEDED",
+                  "HIGH_CONSEQUENCE_ACTION",
+                  "HIGH_IRREVERSIBILITY",
+                  "INSUFFICIENT_CONFIDENCE",
+                  "CONFLICTING_RULES",
+                  "USER_CONFIRMATION_REQUIRED",
+                  "HUMAN_APPROVAL_REQUIRED",
+                  "JUDGMENT_REQUIRED",
+                  "EVALUATION_FAILURE"
+                ]
+              },
+              {
+                "pattern": "^[a-z][a-z0-9_-]{0,63}\\.[a-z0-9][a-z0-9_.-]{0,127}$"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "records": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "falsifier_horizon_days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3650
+        }
+      }
+    }
+  }
+}

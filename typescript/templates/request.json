@@ -1,0 +1,9 @@
+{
+  "protocol": "FJP",
+  "version": "0.1",
+  "actor": { "agent_id": "procurement-agent", "principal_id": "user_123" },
+  "action": { "type": "purchase", "target": "vendor_123", "amount": 12500, "currency": "USD" },
+  "context": { "environment": "production", "current_time": "2026-09-29T16:00:00Z" },
+  "evidence": { "vendor_approved": true, "budget_remaining": 20000 },
+  "confidence": 0.91
+}

@@ -1,0 +1,74 @@
+# Abe policy (FJP v0.1) — starter template (abe init)
+# Docs: https://fjp.flowinfo.co/abe    Validate: abe validate-policy abe-policy.yaml
+version: "0.1"
+policy_id: my-agent-policy
+policy_version: "2026-09-29"
+
+# Anything no rule resolves requires judgment (fail closed). Set to ACT for allow-by-default.
+defaults:
+  unmatched: ESCALATE
+
+rules:
+  - id: purchase_hard_limit
+    description: Never permit purchases above $100,000
+    when:
+      all:
+        - { field: action.type, op: eq, value: purchase }
+        - { field: action.amount, op: gt, value: 100000 }
+    decision: BLOCK
+    reason_code: HARD_POLICY_VIOLATION
+
+  - id: purchase_review_limit
+    description: Purchases above $10,000 require judgment
+    when:
+      all:
+        - { field: action.type, op: eq, value: purchase }
+        - { field: action.amount, op: gt, value: 10000 }
+    decision: ESCALATE
+    reason_code: FINANCIAL_THRESHOLD_EXCEEDED
+
+  - id: routine_purchase
+    when:
+      all:
+        - { field: action.type, op: eq, value: purchase }
+        - { field: action.amount, op: lte, value: 500 }
+    decision: ACT
+
+  - id: wire_review
+    description: Wires above $10,000 require judgment
+    when:
+      all:
+        - { field: action.type, op: eq, value: wire_transfer }
+        - { field: action.amount, op: gt, value: 10000 }
+    decision: ESCALATE
+    reason_code: FINANCIAL_THRESHOLD_EXCEEDED
+
+  - id: internal_messages
+    when: { field: action.type, op: in, value: [send_internal_message, draft_email] }
+    decision: ACT
+
+evidence_requirements:
+  - id: refund_evidence
+    when: { field: action.type, op: eq, value: refund }
+    require: [evidence.customer_verified, evidence.original_transaction]
+    missing_decision: ESCALATE
+    reason_code: EVIDENCE_MISSING
+
+risk:
+  defaults: { level: MEDIUM }
+  mappings:
+    - when: { field: action.type, op: in, value: [send_internal_message, draft_email] }
+      level: LOW
+    - when: { field: action.type, op: eq, value: wire_transfer }
+      level: HIGH
+  escalate_at: [HIGH, CRITICAL]
+
+irreversibility:
+  escalate_at: [HIGH, CRITICAL]
+
+confidence:
+  minimum_to_act: 0.90
+
+judgment_required:
+  - action.type: terminate_employee
+  - action.type: acquisition_offer

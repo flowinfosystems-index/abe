@@ -1,0 +1,143 @@
+# FJP-CONF Gate profile — standard conformance policy.
+# Every golden fixture in ../decisions.json is evaluated against this policy.
+version: "0.1"
+policy_id: fjp-conformance-standard
+policy_version: "2026-09-29"
+description: Reference policy for FJP Gate v0.1 conformance fixtures.
+
+defaults:
+  unmatched: ESCALATE
+  unmatched_reason_code: JUDGMENT_REQUIRED
+
+authorization:
+  default: deny
+  agents:
+    procurement-agent: { allow: [purchase, refund] }
+    finance-agent:     { allow: [wire_transfer, purchase] }
+    support-agent:     { allow: [refund, send_internal_message] }
+    travel-agent:      { allow: [book_hotel, book_flight] }
+    hr-agent:          { allow: [terminate_employee] }
+    robot-agent:       { allow: ["*"] }
+
+rules:
+  - id: blocked_vendor
+    description: Never transact with a blocked vendor
+    when: { field: action.target, op: in, value: [vendor_blocked_1, vendor_blocked_2] }
+    decision: BLOCK
+    reason_code: HARD_POLICY_VIOLATION
+
+  - id: purchase_hard_limit
+    description: Never permit purchases above $100,000
+    when:
+      all:
+        - { field: action.type, op: eq, value: purchase }
+        - { field: action.amount, op: gt, value: 100000 }
+    decision: BLOCK
+    reason_code: HARD_POLICY_VIOLATION
+
+  - id: purchase_review_limit
+    description: Purchases above $10,000 require judgment
+    when:
+      all:
+        - { field: action.type, op: eq, value: purchase }
+        - { field: action.amount, op: gt, value: 10000 }
+    decision: ESCALATE
+    reason_code: FINANCIAL_THRESHOLD_EXCEEDED
+
+  - id: routine_purchase
+    when:
+      all:
+        - { field: action.type, op: eq, value: purchase }
+        - { field: action.amount, op: lte, value: 500 }
+    decision: ACT
+
+  - id: preapproved_vendor_purchase
+    description: Pre-approved vendors may be used up to $20,000
+    when:
+      all:
+        - { field: action.type, op: eq, value: purchase }
+        - { field: evidence.vendor_approved, op: eq, value: true }
+        - { field: action.amount, op: lte, value: 20000 }
+    decision: ACT
+
+  - id: wire_review
+    when:
+      all:
+        - { field: action.type, op: eq, value: wire_transfer }
+        - { field: action.amount, op: gt, value: 10000 }
+    decision: ESCALATE
+    reason_code: FINANCIAL_THRESHOLD_EXCEEDED
+
+  - id: small_refund
+    when:
+      all:
+        - { field: action.type, op: eq, value: refund }
+        - { field: action.amount, op: lte, value: 200 }
+    decision: ACT
+
+  - id: internal_message
+    when: { field: action.type, op: eq, value: send_internal_message }
+    decision: ACT
+
+  - id: high_risk_physical_action
+    when:
+      all:
+        - { field: risk.level, op: in, value: [HIGH, CRITICAL] }
+        - { field: context.humans_present, op: eq, value: true }
+    decision: ESCALATE
+    reason_code: HIGH_CONSEQUENCE_ACTION
+
+  - id: nonrefundable_large_booking
+    when:
+      all:
+        - { field: action.type, op: eq, value: book_hotel }
+        - { field: action.refundable, op: eq, value: false }
+        - { field: action.total_price, op: gt, value: 1000 }
+    decision: ESCALATE
+    reason_code: JUDGMENT_REQUIRED
+
+  - id: protected_window
+    description: No outbound transfers during the quarter-close freeze
+    when:
+      all:
+        - { field: action.type, op: eq, value: wire_transfer }
+        - { field: context.current_time, op: gte, value: "2026-12-28T00:00:00Z" }
+        - { field: context.current_time, op: lt, value: "2027-01-02T00:00:00Z" }
+    decision: BLOCK
+    reason_code: acme.quarter_close_freeze
+
+evidence_requirements:
+  - id: refund_evidence
+    when: { field: action.type, op: eq, value: refund }
+    require:
+      - evidence.customer_verified
+      - evidence.original_transaction
+      - evidence.refund_policy_loaded
+    missing_decision: ESCALATE
+    reason_code: EVIDENCE_MISSING
+
+risk:
+  defaults: { level: MEDIUM }
+  mappings:
+    - when: { field: action.type, op: eq, value: send_internal_message }
+      level: LOW
+    - when: { field: action.type, op: eq, value: wire_transfer }
+      level: HIGH
+  escalate_at: [HIGH, CRITICAL]
+
+irreversibility:
+  defaults: { level: LOW }
+  escalate_at: [HIGH, CRITICAL]
+
+confidence:
+  minimum_to_act: 0.90
+  below_minimum:
+    decision: ESCALATE
+    reason_code: INSUFFICIENT_CONFIDENCE
+
+judgment_required:
+  - action.type: terminate_employee
+  - action.type: acquisition_offer
+
+records:
+  falsifier_horizon_days: 30

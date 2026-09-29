@@ -1,0 +1,8 @@
+{
+  "actor": { "agent_id": "robot-7" },
+  "action": { "type": "robot_move_payload", "payload_kg": 1800, "destination": "zone_4" },
+  "context": { "humans_present": true, "operation_mode": "production", "current_time": "2026-09-29T16:00:00Z" },
+  "evidence": { "interlock_ok": true, "zone_clear_scan": "scan_8812" },
+  "risk": { "level": "CRITICAL" },
+  "irreversibility": { "level": "HIGH" }
+}

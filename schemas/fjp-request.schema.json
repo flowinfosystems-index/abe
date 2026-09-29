@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fjp.flowinfo.co/schemas/v0.1/fjp-request.schema.json",
+  "title": "FJP v0.1 request",
+  "description": "A proposed action submitted to an Abe before execution. Domain-specific fields are allowed inside action, context, evidence and metadata.",
+  "type": "object",
+  "required": [
+    "action"
+  ],
+  "properties": {
+    "protocol": {
+      "const": "FJP"
+    },
+    "version": {
+      "const": "0.1"
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "actor": {
+      "type": "object",
+      "properties": {
+        "agent_id": {
+          "type": "string"
+        },
+        "principal_id": {
+          "type": "string"
+        },
+        "organization_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "action": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "directive"
+            ]
+          },
+          {
+            "required": [
+              "judgment_ref"
+            ]
+          }
+        ]
+      },
+      "additionalProperties": true
+    },
+    "context": {
+      "type": "object",
+      "properties": {
+        "current_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "time": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": true
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Caller-supplied; stored as evidence, never treated as calibrated."
+    },
+    "risk": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "level": {
+              "enum": [
+                "LOW",
+                "MEDIUM",
+                "HIGH",
+                "CRITICAL"
+              ]
+            }
+          },
+          "required": [
+            "level"
+          ]
+        },
+        {
+          "enum": [
+            "LOW",
+            "MEDIUM",
+            "HIGH",
+            "CRITICAL"
+          ]
+        }
+      ]
+    },
+    "irreversibility": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "level": {
+              "enum": [
+                "LOW",
+                "MEDIUM",
+                "HIGH",
+                "CRITICAL"
+              ]
+            }
+          },
+          "required": [
+            "level"
+          ]
+        },
+        {
+          "enum": [
+            "LOW",
+            "MEDIUM",
+            "HIGH",
+            "CRITICAL"
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

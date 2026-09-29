@@ -1,0 +1,19 @@
+Abe (FJP Gate reference implementation)
+Copyright 2026 Flow Information Systems
+
+This product was created and is maintained by Flow Information Systems
+(https://flowinfo.co).
+
+It includes the FJP-CONF v0.1 conformance checks from
+https://github.com/flowinfosystems-index/fjp-conformance (Apache-2.0),
+vendored in python/fjp/conformance/fjp_conf.py and typescript/src/fjpConf.ts.
+
+Flow Judgment Protocol™, FJP™, FJP Gate™, Abe™, FJP-CONF™, FJP Compatible™,
+Judgment-Grounded Agent™, Judgment-Grounded™, Flow™, and Flow Information
+Systems™ are trademarks of Flow Information Systems. See TRADEMARKS.md.
+
+The Apache License, Version 2.0 (LICENSE) governs use of the source code in this
+repository. It does not grant any right to use the trademarks listed above.
+
+This NOTICE file must be preserved in redistributions of this work, per Section 4
+of the Apache License, Version 2.0.

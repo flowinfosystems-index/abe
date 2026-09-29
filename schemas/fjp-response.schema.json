@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fjp.flowinfo.co/schemas/v0.1/fjp-response.schema.json",
+  "title": "FJP v0.1 response",
+  "type": "object",
+  "required": [
+    "protocol",
+    "version",
+    "decision",
+    "reason_code",
+    "risk_level",
+    "record_id",
+    "timestamp"
+  ],
+  "properties": {
+    "protocol": {
+      "const": "FJP"
+    },
+    "version": {
+      "const": "0.1"
+    },
+    "decision": {
+      "enum": [
+        "ACT",
+        "BLOCK",
+        "ESCALATE"
+      ]
+    },
+    "reason_code": {
+      "type": "string",
+      "anyOf": [
+        {
+          "enum": [
+            "POLICY_SATISFIED",
+            "HARD_POLICY_VIOLATION",
+            "AUTHORIZATION_FAILED",
+            "EVIDENCE_MISSING",
+            "RISK_THRESHOLD_EXCEEDED",
+            "FINANCIAL_THRESHOLD_EXCEEDED",
+            "HIGH_CONSEQUENCE_ACTION",
+            "HIGH_IRREVERSIBILITY",
+            "INSUFFICIENT_CONFIDENCE",
+            "CONFLICTING_RULES",
+            "USER_CONFIRMATION_REQUIRED",
+            "HUMAN_APPROVAL_REQUIRED",
+            "JUDGMENT_REQUIRED",
+            "EVALUATION_FAILURE"
+          ]
+        },
+        {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}\\.[a-z0-9][a-z0-9_.-]{0,127}$"
+        }
+      ]
+    },
+    "risk_level": {
+      "enum": [
+        "LOW",
+        "MEDIUM",
+        "HIGH",
+        "CRITICAL",
+        "UNSPECIFIED"
+      ]
+    },
+    "record_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "matched_rules": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "missing_evidence": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "original_gate_decision": {
+      "enum": [
+        "ACT",
+        "BLOCK",
+        "ESCALATE"
+      ]
+    },
+    "gate_record_id": {
+      "type": "string"
+    },
+    "resolution": {
+      "type": "object"
+    },
+    "record": {
+      "$ref": "jgr.schema.json"
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "$ref": "jgr.schema.json"
+      }
+    }
+  },
+  "additionalProperties": true
+}

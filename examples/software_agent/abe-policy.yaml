@@ -1,0 +1,44 @@
+# Coding / DevOps agent: allow reads and branches, escalate production, block destructive ops.
+version: "0.1"
+policy_id: software-agent
+policy_version: "2026-09-29"
+defaults: { unmatched: ESCALATE }
+rules:
+  - id: read_only
+    when: { field: action.type, op: in, value: [read_file, list_files, run_tests, open_pr] }
+    decision: ACT
+  - id: push_feature_branch
+    when:
+      all:
+        - { field: action.type, op: eq, value: git_push }
+        - { field: action.branch, op: not_in, value: [main, master, production] }
+    decision: ACT
+  - id: push_protected_branch
+    when:
+      all:
+        - { field: action.type, op: eq, value: git_push }
+        - { field: action.branch, op: in, value: [main, master, production] }
+    decision: ESCALATE
+    reason_code: HUMAN_APPROVAL_REQUIRED
+  - id: force_push
+    when: { field: action.force, op: eq, value: true }
+    decision: BLOCK
+    reason_code: HARD_POLICY_VIOLATION
+  - id: destructive_sql
+    when:
+      all:
+        - { field: action.type, op: eq, value: run_sql }
+        - any:
+            - { field: action.statement, op: contains, value: "DROP " }
+            - { field: action.statement, op: contains, value: "TRUNCATE " }
+    decision: BLOCK
+    reason_code: HARD_POLICY_VIOLATION
+  - id: production_change
+    when: { field: context.environment, op: eq, value: production }
+    decision: ESCALATE
+    reason_code: HIGH_CONSEQUENCE_ACTION
+irreversibility:
+  mappings:
+    - when: { field: action.type, op: in, value: [delete_resource, run_sql, send_email] }
+      level: HIGH
+  escalate_at: [HIGH, CRITICAL]

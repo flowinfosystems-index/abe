@@ -1,0 +1,342 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fjp.flowinfo.co/schemas/v0.1/jgr.schema.json",
+  "title": "FJP v0.1 Judgment-Grounded Record (Gate profile)",
+  "description": "Immutable record of one Gate evaluation, resolution or outcome. Also a valid FJP-CONF v0.1 JGR (signal, judgment, action, falsifier). record_hash = sha256 of the canonical JSON of the record without record_hash, signature and falsifier.status.",
+  "type": "object",
+  "required": [
+    "protocol",
+    "version",
+    "record_id",
+    "request_id",
+    "root_record_id",
+    "event_type",
+    "timestamp",
+    "actor",
+    "action",
+    "decision",
+    "policy",
+    "request_hash",
+    "record_hash",
+    "signal",
+    "judgment",
+    "falsifier"
+  ],
+  "properties": {
+    "protocol": {
+      "const": "FJP"
+    },
+    "version": {
+      "const": "0.1"
+    },
+    "fjp_conf_version": {
+      "type": "string"
+    },
+    "implementation_version": {
+      "type": "string"
+    },
+    "record_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "root_record_id": {
+      "type": "string"
+    },
+    "parent_record_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "event_type": {
+      "enum": [
+        "DECISION",
+        "RESOLUTION",
+        "OUTCOME"
+      ]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "evaluation_time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "time_source": {
+      "enum": [
+        "request",
+        "system"
+      ]
+    },
+    "actor": {
+      "type": "object"
+    },
+    "action": {
+      "type": "object",
+      "required": [
+        "directive",
+        "judgment_ref"
+      ],
+      "properties": {
+        "directive": {
+          "type": "string",
+          "minLength": 1
+        },
+        "judgment_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "decision": {
+      "enum": [
+        "ACT",
+        "BLOCK",
+        "ESCALATE"
+      ]
+    },
+    "original_gate_decision": {
+      "enum": [
+        "ACT",
+        "BLOCK",
+        "ESCALATE"
+      ]
+    },
+    "reason_code": {
+      "type": "string",
+      "anyOf": [
+        {
+          "enum": [
+            "POLICY_SATISFIED",
+            "HARD_POLICY_VIOLATION",
+            "AUTHORIZATION_FAILED",
+            "EVIDENCE_MISSING",
+            "RISK_THRESHOLD_EXCEEDED",
+            "FINANCIAL_THRESHOLD_EXCEEDED",
+            "HIGH_CONSEQUENCE_ACTION",
+            "HIGH_IRREVERSIBILITY",
+            "INSUFFICIENT_CONFIDENCE",
+            "CONFLICTING_RULES",
+            "USER_CONFIRMATION_REQUIRED",
+            "HUMAN_APPROVAL_REQUIRED",
+            "JUDGMENT_REQUIRED",
+            "EVALUATION_FAILURE"
+          ]
+        },
+        {
+          "pattern": "^[a-z][a-z0-9_-]{0,63}\\.[a-z0-9][a-z0-9_.-]{0,127}$"
+        }
+      ]
+    },
+    "reason_codes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "anyOf": [
+          {
+            "enum": [
+              "POLICY_SATISFIED",
+              "HARD_POLICY_VIOLATION",
+              "AUTHORIZATION_FAILED",
+              "EVIDENCE_MISSING",
+              "RISK_THRESHOLD_EXCEEDED",
+              "FINANCIAL_THRESHOLD_EXCEEDED",
+              "HIGH_CONSEQUENCE_ACTION",
+              "HIGH_IRREVERSIBILITY",
+              "INSUFFICIENT_CONFIDENCE",
+              "CONFLICTING_RULES",
+              "USER_CONFIRMATION_REQUIRED",
+              "HUMAN_APPROVAL_REQUIRED",
+              "JUDGMENT_REQUIRED",
+              "EVALUATION_FAILURE"
+            ]
+          },
+          {
+            "pattern": "^[a-z][a-z0-9_-]{0,63}\\.[a-z0-9][a-z0-9_.-]{0,127}$"
+          }
+        ]
+      }
+    },
+    "matched_rules": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "risk": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "enum": [
+            "LOW",
+            "MEDIUM",
+            "HIGH",
+            "CRITICAL",
+            "UNSPECIFIED"
+          ]
+        }
+      }
+    },
+    "irreversibility": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "enum": [
+            "LOW",
+            "MEDIUM",
+            "HIGH",
+            "CRITICAL",
+            "UNSPECIFIED"
+          ]
+        }
+      }
+    },
+    "evidence_present": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "evidence_missing": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "confidence": {
+      "type": "object",
+      "properties": {
+        "calibrated": {
+          "const": false
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "required": [
+        "hash"
+      ],
+      "properties": {
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "request_hash": {
+      "type": "string"
+    },
+    "resolver": {
+      "type": "object",
+      "required": [
+        "type"
+      ]
+    },
+    "status": {
+      "enum": [
+        "executed",
+        "failed",
+        "reverted",
+        "cancelled",
+        "approved",
+        "rejected"
+      ]
+    },
+    "signal": {
+      "type": "object",
+      "required": [
+        "id",
+        "description",
+        "sources",
+        "observed_at"
+      ],
+      "properties": {
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "judgment": {
+      "type": "object",
+      "required": [
+        "id",
+        "assessment",
+        "confidence",
+        "signal_ref"
+      ],
+      "properties": {
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "falsifier": {
+      "type": "object",
+      "required": [
+        "condition",
+        "checkable",
+        "status"
+      ],
+      "properties": {
+        "checkable": {
+          "const": true
+        },
+        "status": {
+          "enum": [
+            "open",
+            "triggered",
+            "expired"
+          ]
+        }
+      }
+    },
+    "record_hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "signature": {
+      "type": "object",
+      "required": [
+        "algorithm",
+        "key_id",
+        "value"
+      ],
+      "properties": {
+        "algorithm": {
+          "const": "ed25519"
+        }
+      }
+    }
+  },
+  "additionalProperties": true
+}

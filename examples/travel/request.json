@@ -1,0 +1,22 @@
+{
+  "actor": { "agent_id": "travel-agent", "principal_id": "user_steve" },
+  "action": { "type": "book_hotel", "option_id": "h2", "vendor": "Hotel Loop", "total_price": 1480, "refundable": false },
+  "context": { "current_time": "2026-09-29T16:00:00Z" },
+  "evidence": {
+    "live_quote": true,
+    "travel_check": {
+      "summary": "Chicago hotel for the Acme meeting",
+      "purpose": "business",
+      "destination": "Chicago, IL",
+      "start_date": "2026-10-13",
+      "end_date": "2026-10-16",
+      "schedule_certainty": "tentative",
+      "proposed_option_id": "h2",
+      "options": [
+        { "option_id": "h1", "kind": "hotel", "vendor": "Hotel Loop", "price_total": 1620, "refundable": true, "distance_km": 0.8 },
+        { "option_id": "h2", "kind": "hotel", "vendor": "Hotel Loop", "price_total": 1480, "refundable": false, "distance_km": 0.8 }
+      ]
+    }
+  },
+  "confidence": 0.93
+}

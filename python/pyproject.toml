@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "abe-ai"
+version = "0.1.0"
+description = "Abe: one control point before an AI agent acts. Deterministic ACT / BLOCK / ESCALATE with an immutable Judgment-Grounded Record. Local, offline, no account."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Flow Information Systems", email = "flowinfosystems@gmail.com" }]
+keywords = ["ai-agents", "guardrails", "policy", "audit", "abe", "fjp", "mcp", "agent-safety"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Topic :: Security",
+  "Topic :: Software Development :: Libraries",
+]
+dependencies = ["PyYAML>=6.0"]
+
+[project.optional-dependencies]
+signing = ["cryptography>=42"]
+mcp = ["mcp>=1.27,<2"]
+all = ["cryptography>=42", "mcp>=1.27,<2"]
+dev = ["pytest>=8", "cryptography>=42", "jsonschema>=4"]
+
+[project.scripts]
+abe = "abe.cli:main"
+
+[project.urls]
+Homepage = "https://fjp.flowinfo.co/abe"
+Source = "https://github.com/flowinfosystems-index/abe"
+Specification = "https://fjp.flowinfo.co/abe/spec"
+
+[tool.setuptools]
+packages = ["abe", "abe.stores", "abe.conformance"]
+license-files = ["LICENSE", "NOTICE"]
+
+[tool.setuptools.package-data]
+abe = ["templates/*", "py.typed"]
+"abe.conformance" = ["fixtures/*.json", "fixtures/policies/*.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

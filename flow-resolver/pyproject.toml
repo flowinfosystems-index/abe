@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "abe-flow"
+version = "0.1.0"
+description = "Send Abe escalations to Flow's judgment service (resolve.flowinfo.co). Only ESCALATE results are sent."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Flow Information Systems", email = "flowinfosystems@gmail.com" }]
+dependencies = ["abe-ai>=0.1.0,<0.2"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.urls]
+Homepage = "https://fjp.flowinfo.co/abe"
+Source = "https://github.com/flowinfosystems-index/abe"
+
+[tool.setuptools]
+packages = ["abe_flow"]
+license-files = ["LICENSE", "NOTICE"]

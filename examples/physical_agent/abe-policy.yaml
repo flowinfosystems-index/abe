@@ -1,0 +1,35 @@
+# Physical agent (spec §27): the Gate evaluates structured proposed actions only; no robotics logic.
+version: "0.1"
+policy_id: warehouse-robots
+policy_version: "2026-09-29"
+defaults: { unmatched: ESCALATE }
+rules:
+  - id: high_risk_physical_action
+    when:
+      all:
+        - { field: risk.level, op: in, value: [HIGH, CRITICAL] }
+        - { field: context.humans_present, op: eq, value: true }
+    decision: ESCALATE
+    reason_code: HIGH_CONSEQUENCE_ACTION
+  - id: over_rated_payload
+    when: { field: action.payload_kg, op: gt, value: 2000 }
+    decision: BLOCK
+    reason_code: HARD_POLICY_VIOLATION
+  - id: routine_move
+    when:
+      all:
+        - { field: action.type, op: eq, value: robot_move_payload }
+        - { field: action.payload_kg, op: lte, value: 500 }
+        - { field: context.humans_present, op: eq, value: false }
+    decision: ACT
+risk:
+  defaults: { level: MEDIUM }
+  mappings:
+    - when: { field: action.payload_kg, op: gt, value: 1000 }
+      level: HIGH
+  escalate_at: [CRITICAL]
+evidence_requirements:
+  - id: safety_interlock
+    when: { field: action.type, op: eq, value: robot_move_payload }
+    require: [evidence.interlock_ok, evidence.zone_clear_scan]
+    missing_decision: ESCALATE

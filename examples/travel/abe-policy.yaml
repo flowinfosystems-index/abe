@@ -1,0 +1,32 @@
+# Travel: the free Gate stops at "this needs judgment" (spec §28). Judd or Flow decides whether it's worth it.
+version: "0.1"
+policy_id: travel-gate
+policy_version: "2026-09-29"
+defaults: { unmatched: ESCALATE }
+authorization:
+  default: deny
+  agents:
+    travel-agent: { allow: [book_hotel, book_flight, book_car] }
+rules:
+  - id: nonrefundable_large_booking
+    when:
+      all:
+        - { field: action.type, op: in, value: [book_hotel, book_flight] }
+        - { field: action.refundable, op: eq, value: false }
+        - { field: action.total_price, op: gt, value: 1000 }
+    decision: ESCALATE
+    reason_code: JUDGMENT_REQUIRED
+  - id: booking_hard_cap
+    when: { field: action.total_price, op: gt, value: 10000 }
+    decision: BLOCK
+    reason_code: HARD_POLICY_VIOLATION
+  - id: routine_refundable
+    when:
+      all:
+        - { field: action.refundable, op: eq, value: true }
+        - { field: action.total_price, op: lte, value: 1000 }
+    decision: ACT
+evidence_requirements:
+  - id: live_quote
+    require: [evidence.live_quote]
+    reason_code: EVIDENCE_MISSING
