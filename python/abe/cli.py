@@ -2,6 +2,7 @@
 
   abe init                               write abe-policy.yaml + request.json to start from
   abe check request.json                 Decision / Reason / Record   (exit 0 ACT, 10 BLOCK, 20 ESCALATE)
+  abe replay cases.jsonl [--baseline old.yaml]   test a policy against saved requests before it goes live
   abe validate-policy abe-policy.yaml
   abe validate-record jgr.json [--public-key pub.pem]
   abe conformance [--level 3] [--bench]
@@ -11,6 +12,8 @@
   abe outcome RECORD_ID executed --store sqlite:abe.db
 
 --policy defaults to $ABE_POLICY, then ./abe-policy.yaml
+--shadow (or ABE_MODE=shadow) on check, serve and mcp: records are marked shadow (not enforced).
+  Decisions and exit codes are unchanged, so shadow mode never lets anything run that enforce mode would stop.
 """
 from __future__ import annotations
 
@@ -39,6 +42,16 @@ def _load_json(path: str):
     return json.loads(raw)
 
 
+def _mode(args) -> str:
+    if getattr(args, "shadow", False):
+        return "shadow"
+    env = (os.environ.get("ABE_MODE") or "enforce").strip().lower()
+    if env not in ("enforce", "shadow"):
+        print(f"ABE_MODE must be enforce or shadow, got {env!r}", file=sys.stderr)
+        raise SystemExit(2)
+    return env
+
+
 def _gate(args, default_store: str | None = None):
     from .exceptions import PolicyError
     from .gate import Gate
@@ -50,7 +63,7 @@ def _gate(args, default_store: str | None = None):
         signer = Signer.from_file(key, key_id=getattr(args, "key_id", None) or "local:key:1")
     try:
         return Gate(_policy_arg(args), store=store_from_uri(getattr(args, "store", None) or default_store),
-                    signer=signer)
+                    signer=signer, mode=_mode(args))
     except PolicyError as e:
         print(f"policy error: {e}", file=sys.stderr)
         raise SystemExit(2) from e
@@ -91,6 +104,8 @@ def cmd_check(args):
             print(f"Missing evidence: {', '.join(r.missing_evidence)}")
         print(f"Risk: {r.risk_level}")
         print(f"Record: {r.record_id}")
+        if not r.enforced:
+            print("Mode: shadow (recorded, not enforced)")
         for w in r.warnings:
             print(f"Warning: {w}", file=sys.stderr)
         if args.record:
@@ -99,6 +114,31 @@ def cmd_check(args):
         with open(args.record_out, "w", encoding="utf-8") as fh:
             json.dump(r.record.to_dict(), fh, indent=2, ensure_ascii=False)
     return EXIT[r.decision]
+
+
+def cmd_replay(args):
+    from .exceptions import PolicyError
+    from .replay import ReplayInputError, format_report, load_cases, replay
+    try:
+        cases = load_cases(args.cases)
+        rep = replay(cases, _policy_arg(args), args.baseline)
+    except PolicyError as e:
+        print(f"policy error: {e}", file=sys.stderr)
+        return 2
+    except (OSError, ReplayInputError) as e:
+        print(f"cannot read cases: {e}", file=sys.stderr)
+        return 2
+    if not args.json:
+        rep_out = format_report(rep)
+    else:
+        rep_out = json.dumps(rep if args.all else {k: v for k, v in rep.items() if k != "results"},
+                             indent=2, ensure_ascii=False)
+    print(rep_out)
+    if rep["mismatches"]:
+        return 1
+    if args.fail_on_change and rep["changed"]:
+        return 1
+    return 0
 
 
 def cmd_validate_policy(args):
@@ -223,8 +263,11 @@ def main(argv=None) -> int:
     p.add_argument("--version", action="version", version=f"abe-ai {__version__}")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    def with_policy(sp, store=True, sign=False):
+    def with_policy(sp, store=True, sign=False, shadow=False):
         sp.add_argument("--policy", help="policy file (default $ABE_POLICY or ./abe-policy.yaml)")
+        if shadow:
+            sp.add_argument("--shadow", action="store_true",
+                            help="mark records shadow: recorded for comparison, not enforced (or ABE_MODE=shadow)")
         if store:
             sp.add_argument("--store", help="record store: memory: | file:records.jsonl | sqlite:abe.db")
         if sign:
@@ -238,12 +281,20 @@ def main(argv=None) -> int:
     s.add_argument("--force", action="store_true")
     s.set_defaults(fn=cmd_init)
 
-    s = with_policy(sub.add_parser("check", help="evaluate a request (file or - for stdin)"), sign=True)
+    s = with_policy(sub.add_parser("check", help="evaluate a request (file or - for stdin)"), sign=True, shadow=True)
     s.add_argument("request")
     s.add_argument("--json", action="store_true", help="print the FJP response as JSON")
     s.add_argument("--record", action="store_true", help="also print the full record")
     s.add_argument("--record-out", help="write the record to this file")
     s.set_defaults(fn=cmd_check)
+
+    s = with_policy(sub.add_parser("replay", help="run saved requests through a policy and report changes"), store=False)
+    s.add_argument("cases", help=".jsonl, .json, or a directory of them")
+    s.add_argument("--baseline", help="current policy to compare against")
+    s.add_argument("--fail-on-change", action="store_true", help="exit 1 if any decision differs from --baseline")
+    s.add_argument("--json", action="store_true", help="print the report as JSON")
+    s.add_argument("--all", action="store_true", help="with --json, include every case's result")
+    s.set_defaults(fn=cmd_replay)
 
     s = sub.add_parser("validate-policy", help="validate a policy file")
     s.add_argument("path")
@@ -260,14 +311,14 @@ def main(argv=None) -> int:
     s.add_argument("--bench", action="store_true", help="also measure evaluation latency")
     s.set_defaults(fn=cmd_conformance)
 
-    s = with_policy(sub.add_parser("serve", help="local HTTP server (127.0.0.1 by default)"), sign=True)
+    s = with_policy(sub.add_parser("serve", help="local HTTP server (127.0.0.1 by default)"), sign=True, shadow=True)
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--port", type=int, default=8787)
     s.add_argument("--token", help="require Authorization: Bearer <token> (or $ABE_TOKEN)")
     s.add_argument("--allow-remote", action="store_true", help="permit binding a non-loopback interface")
     s.set_defaults(fn=cmd_serve)
 
-    s = with_policy(sub.add_parser("mcp", help="MCP server over stdio"), sign=True)
+    s = with_policy(sub.add_parser("mcp", help="MCP server over stdio"), sign=True, shadow=True)
     s.set_defaults(fn=cmd_mcp)
 
     s = sub.add_parser("keygen", help="generate an Ed25519 signing key pair")

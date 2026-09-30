@@ -3,7 +3,8 @@
  * abe — Abe CLI (TypeScript). Same commands and exit codes as the Python CLI:
  *   abe init | check <request.json> | validate-policy <file> | validate-record <file> [--public-key pem]
  *   abe conformance [--level 3] [--bench] | serve [--host] [--port] [--token] [--allow-remote] | keygen [--out-dir]
- * Exit codes for check: 0 ACT, 10 BLOCK, 20 ESCALATE.
+ *   abe replay <cases.jsonl|.json|dir> [--baseline old.yaml] [--fail-on-change] [--json] [--all]
+ * Exit codes for check: 0 ACT, 10 BLOCK, 20 ESCALATE (unchanged by --shadow / ABE_MODE=shadow).
  */
 import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -11,10 +12,11 @@ import { fileURLToPath } from "node:url";
 import * as conformance from "./conformance.js";
 import { PolicyError } from "./errors.js";
 import * as fjpConf from "./fjpConf.js";
-import { Gate } from "./gate.js";
+import { Gate, type Mode } from "./gate.js";
 import { loadPolicy } from "./policy.js";
 import { isValidReasonCode } from "./reasonCodes.js";
 import { verifyHash } from "./records.js";
+import { formatReport, loadCases, replay, ReplayInputError } from "./replay.js";
 import { serve } from "./server.js";
 import { Ed25519Signer, generateKeyPair, verifySignature } from "./signing.js";
 import { storeFromUri } from "./stores.js";
@@ -31,7 +33,7 @@ function parse(argv: string[]) {
     if (a.startsWith("--")) {
       const [k, v] = a.slice(2).split("=", 2);
       if (v !== undefined) flags[k] = v;
-      else if (i + 1 < argv.length && !argv[i + 1].startsWith("--") && !["json", "record", "force", "bench", "allow-remote"].includes(k)) flags[k] = argv[++i];
+      else if (i + 1 < argv.length && !argv[i + 1].startsWith("--") && !["json", "record", "force", "bench", "allow-remote", "shadow", "fail-on-change", "all"].includes(k)) flags[k] = argv[++i];
       else flags[k] = true;
     } else pos.push(a);
   }
@@ -41,11 +43,22 @@ function parse(argv: string[]) {
 const policyPath = (f: Record<string, string | boolean>) => (f.policy as string) || process.env.ABE_POLICY || process.env.FJP_POLICY
   || (!existsSync("abe-policy.yaml") && existsSync("fjp-policy.yaml") ? "fjp-policy.yaml" : "abe-policy.yaml");
 
+function modeOf(f: Record<string, string | boolean>): Mode {
+  if (f.shadow) return "shadow";
+  const env = (process.env.ABE_MODE || "enforce").trim().toLowerCase();
+  if (env !== "enforce" && env !== "shadow") {
+    console.error(`ABE_MODE must be enforce or shadow, got '${env}'`);
+    process.exit(2);
+  }
+  return env;
+}
+
 function makeGate(f: Record<string, string | boolean>, defaultStore?: string) {
   const key = (f["sign-key"] as string) || (process.env.ABE_SIGNING_KEY || process.env.FJP_SIGNING_KEY);
+  const mode = modeOf(f);
   try {
     return new Gate({ policy: policyPath(f), store: storeFromUri((f.store as string) || defaultStore),
-      signer: key ? Ed25519Signer.fromFile(key, (f["key-id"] as string) || "local:key:1") : null });
+      signer: key ? Ed25519Signer.fromFile(key, (f["key-id"] as string) || "local:key:1") : null, mode });
   } catch (e) {
     if (e instanceof PolicyError) {
       console.error(`policy error: ${e.message}`);
@@ -101,11 +114,30 @@ async function main(argv: string[]): Promise<number> {
         if (r.matchedRules.length) console.log(`Rules: ${r.matchedRules.join(", ")}`);
         if (r.missingEvidence.length) console.log(`Missing evidence: ${r.missingEvidence.join(", ")}`);
         console.log(`Risk: ${r.riskLevel}\nRecord: ${r.recordId}`);
+        if (!r.enforced) console.log("Mode: shadow (recorded, not enforced)");
         for (const w of r.warnings) console.error(`Warning: ${w}`);
         if (flags.record) console.log(JSON.stringify(r.record, null, 2));
       }
       if (flags["record-out"]) writeFileSync(flags["record-out"] as string, JSON.stringify(r.record, null, 2));
       return EXIT[r.decision];
+    }
+    case "replay": {
+      if (!pos[0]) { console.error("usage: abe replay <cases.jsonl|.json|dir> [--policy p.yaml] [--baseline old.yaml]"); return 2; }
+      let rep;
+      try {
+        rep = await replay(loadCases(pos[0]), policyPath(flags), (flags.baseline as string) || null);
+      } catch (e) {
+        if (e instanceof PolicyError) { console.error(`policy error: ${e.message}`); return 2; }
+        if (e instanceof ReplayInputError || (e as NodeJS.ErrnoException).code) { console.error(`cannot read cases: ${(e as Error).message}`); return 2; }
+        throw e;
+      }
+      if (flags.json) {
+        const { results, ...summary } = rep;
+        console.log(JSON.stringify(flags.all ? { ...summary, results } : summary, null, 2));
+      } else console.log(formatReport(rep));
+      if (rep.mismatches.length) return 1;
+      if (flags["fail-on-change"] && rep.changed.length) return 1;
+      return 0;
     }
     case "validate-policy": {
       try {
@@ -167,13 +199,15 @@ async function main(argv: string[]): Promise<number> {
 
   abe init                          write abe-policy.yaml + request.json
   abe check request.json            Decision / Reason / Record  (exit 0 ACT, 10 BLOCK, 20 ESCALATE)
+  abe replay cases.jsonl [--baseline old.yaml] [--fail-on-change]   test a policy on saved requests
   abe validate-policy abe-policy.yaml
   abe validate-record jgr.json [--public-key pub.pem]
   abe conformance [--level 3] [--bench]
   abe serve [--host 127.0.0.1] [--port 8787] [--token T] [--allow-remote]
   abe keygen [--out-dir .]
 
-Options: --policy (default $ABE_POLICY or ./abe-policy.yaml), --store memory:|file:records.jsonl, --sign-key key.pem, --json, --record, --record-out f.json`);
+Options: --policy (default $ABE_POLICY or ./abe-policy.yaml), --store memory:|file:records.jsonl, --sign-key key.pem, --json, --record, --record-out f.json,
+         --shadow (or ABE_MODE=shadow): records marked shadow, not enforced; decisions and exit codes unchanged`);
       return cmd ? 2 : 0;
   }
 }

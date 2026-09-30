@@ -35,7 +35,7 @@ from typing import Callable, Iterable
 
 from abe import Resolution
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 DEFAULT_BASE_URL = "https://resolve.flowinfo.co"
 VERB_TO_DECISION = {"REACH": "ACT", "SKIP": "BLOCK", "WAIT": "ESCALATE", "RESEARCH_FIRST": "ESCALATE",

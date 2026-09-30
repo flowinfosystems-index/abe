@@ -97,7 +97,7 @@ class Record(_FrozenView):
         d = self.to_dict()
         keep = ("protocol", "version", "event_type", "decision", "reason_code", "reason_codes", "matched_rules",
                 "risk", "irreversibility", "evidence_present", "evidence_missing", "confidence", "policy",
-                "request_hash", "actor", "evaluation_time", "time_source", "resolver")
+                "request_hash", "actor", "evaluation_time", "time_source", "resolver", "mode")
         return {k: d[k] for k in keep if k in d}
 
 
@@ -115,6 +115,12 @@ class GateResult:
     records: tuple = ()                        # [gate record, resolution record?]
     resolution: dict | None = None
     warnings: tuple = ()
+    mode: str = "enforce"                      # "shadow": recorded for comparison, not enforced
+
+    @property
+    def enforced(self) -> bool:
+        """False in shadow mode: keep your existing approval process and don't act on `decision`."""
+        return self.mode != "shadow"
 
     @property
     def record_id(self) -> str:
@@ -149,6 +155,8 @@ class GateResult:
             out["gate_record_id"] = self.records[0].record_id
         if self.resolution:
             out["resolution"] = dict(self.resolution)
+        if self.mode == "shadow":
+            out["mode"] = "shadow"
         return out
 
 

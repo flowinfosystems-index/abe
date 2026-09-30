@@ -336,6 +336,13 @@
           "const": "ed25519"
         }
       }
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "shadow"
+      ],
+      "description": "Present only on records created in shadow mode: recorded for comparison, not enforced."
     }
   },
   "additionalProperties": true

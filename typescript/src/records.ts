@@ -118,6 +118,7 @@ export function buildDecisionRecord(o: {
   req: Record<string, any>; requestHash: string; policy: Policy | null; decision: string; reasonCode: string; // eslint-disable-line @typescript-eslint/no-explicit-any
   reasonCodes: string[]; matched: Finding[]; risk: unknown; irr: unknown; evidencePresent: string[];
   evidenceMissing: string[]; confidence: unknown; failureDetail?: string | null; signer?: Signer | null;
+  mode?: "enforce" | "shadow";
 }): JGR {
   const actor = o.req.actor ?? {};
   const pol = o.policy ? o.policy.describe() : { id: null, version: null, hash: null, format_version: PROTOCOL_VERSION };
@@ -134,7 +135,10 @@ export function buildDecisionRecord(o: {
   assessment += " This is a policy result, not an independent judgment that the action is optimal.";
 
   let directive: string, condition: string;
-  if (o.decision === "ACT") {
+  if (o.mode === "shadow") {
+    assessment += " Shadow mode: recorded for comparison, not enforced.";
+    [directive, condition] = shadowDirective(o.decision, agent, atype, o.recordId, expires);
+  } else if (o.decision === "ACT") {
     directive = `ACT: ${agent} may execute ${atype} as evaluated.`;
     condition = `An OUTCOME record linked to ${o.recordId} reports status failed or reverted, or reports an executed request_hash other than ${o.requestHash}, before ${expires}.`;
   } else if (o.decision === "BLOCK") {
@@ -159,7 +163,21 @@ export function buildDecisionRecord(o: {
     falsifier: { condition, checkable: true, status: "open" },
   });
   if (o.failureDetail) rec.evaluation_error = String(o.failureDetail).slice(0, 500);
+  if (o.mode === "shadow") rec.mode = "shadow"; // present only in shadow mode: enforce-mode records are unchanged
   return finalize(rec, o.signer);
+}
+
+/** Shadow records assert agreement with the human process they run beside, so a linked OUTCOME can falsify them. */
+function shadowDirective(decision: string, agent: unknown, atype: unknown, recordId: string, expires: string): [string, string] {
+  const directive = `SHADOW: not enforced. Abe would ${decision} ${atype}; ${agent} follows its existing approval process and reports the outcome to ${recordId}.`;
+  let condition: string;
+  if (decision === "ACT")
+    condition = `An OUTCOME record linked to ${recordId} reports status rejected, cancelled, failed or reverted (the people disagreed with ACT) before ${expires}.`;
+  else if (decision === "BLOCK")
+    condition = `An OUTCOME record linked to ${recordId} reports status approved or executed (the people disagreed with BLOCK) before ${expires}.`;
+  else
+    condition = `An OUTCOME record linked to ${recordId} reports status executed with details.human_reviewed false (it ran without review, so ESCALATE was unnecessary) before ${expires}.`;
+  return [directive, condition];
 }
 
 export interface Resolution {
@@ -191,11 +209,17 @@ export function buildResolutionRecord(o: { recordId: string; parent: JGR; now: D
     ? { type: r.resolverType ?? "EXTERNAL", implementation: r.implementation ?? "custom", version: r.implementationVersion ?? "0", reference: r.reference ?? null }
     : { type: "EXTERNAL", implementation: "unknown", version: "0", reference: null };
   const falsifiers = r?.falsifiers ? [...r.falsifiers] : [];
-  const condition = typeof falsifiers[0] === "string" && falsifiers[0]
+  let condition = typeof falsifiers[0] === "string" && falsifiers[0]
     ? falsifiers[0]
     : `An OUTCOME record linked to ${p.record_id} reports status failed or reverted before ${expires}.`;
-  const directive = { ACT: `ACT: execute ${atype} as evaluated in ${p.record_id}.`, BLOCK: `BLOCK: do not execute ${atype}.`,
+  let directive = { ACT: `ACT: execute ${atype} as evaluated in ${p.record_id}.`, BLOCK: `BLOCK: do not execute ${atype}.`,
     ESCALATE: `ESCALATE: ${atype} still requires a human or another resolver.` }[o.finalDecision];
+  const shadow = p.mode === "shadow";
+  if (shadow) {
+    const [d, c] = shadowDirective(o.finalDecision, p.actor?.agent_id || "agent", atype, p.root_record_id, expires);
+    directive = d;
+    if (!falsifiers.length) condition = c;
+  }
   Object.assign(rec, {
     decision: o.finalDecision, original_gate_decision: p.decision,
     reason_code: r && r.reasonCode ? r.reasonCode : p.reason_code, resolution_status: o.status, request_hash: p.request_hash,
@@ -211,6 +235,7 @@ export function buildResolutionRecord(o: { recordId: string; parent: JGR; now: D
     falsifier: { condition, checkable: true, status: "open" },
   });
   if (o.error) rec.resolution_error = String(o.error).slice(0, 500);
+  if (shadow) rec.mode = "shadow";
   return finalize(rec, o.signer);
 }
 
@@ -228,6 +253,7 @@ export function buildOutcomeRecord(o: { recordId: string; parent: JGR; now: Date
     falsifier: { condition: `A later OUTCOME record linked to ${p.record_id} reports a status other than ${o.status} before ${expires}.`,
       checkable: true, status: "open" },
   });
+  if (p.mode === "shadow") rec.mode = "shadow";
   return finalize(rec, o.signer);
 }
 
@@ -245,6 +271,15 @@ export function evaluateFalsifier(record: JGR, linked: JGR[], now: Date = new Da
   if (r.event_type === "OUTCOME") {
     const later = outcomes.filter((x) => x.timestamp > r.timestamp);
     return later.some((x) => x.status !== r.status) ? "triggered" : done();
+  }
+  if (r.mode === "shadow") {
+    // triggered = the people handling the action disagreed with Abe's (unenforced) decision
+    let hit: boolean;
+    if (r.decision === "ACT") hit = outcomes.some((x) => ["rejected", "cancelled", "failed", "reverted"].includes(x.status));
+    else if (r.decision === "BLOCK") hit = outcomes.some((x) => x.status === "approved" || x.status === "executed");
+    else hit = outcomes.some((x) => x.status === "executed" && x.details?.human_reviewed === false);
+    if (hit) return "triggered";
+    return outcomes.length || expired ? "expired" : "open";
   }
   if (r.event_type === "RESOLUTION" || r.decision === "ACT") {
     for (const x of outcomes) {

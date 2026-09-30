@@ -23,7 +23,7 @@ In GitHub → Settings → Environments, create an environment named `pypi`.
 ## 3. Release (2 min)
 
 ```bash
-git tag v0.1.0 && git push origin v0.1.0
+git tag v0.2.0 && git push origin v0.2.0
 ```
 
 `release.yml` builds and publishes both PyPI packages, `abe-ai` (with npm provenance) and the Docker image.

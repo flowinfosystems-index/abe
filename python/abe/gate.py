@@ -28,6 +28,7 @@ from .records import (OUTCOME_STATUSES, build_decision_record, build_outcome_rec
 log = logging.getLogger("abe")
 
 MAX_REQUEST_BYTES = 262_144
+MODES = ("enforce", "shadow")
 SEVERITY = {"ACT": 0, "ESCALATE": 1, "BLOCK": 2}
 RESERVED_ACTION_KEYS = ("directive", "judgment_ref")
 _REQUEST_KEYS = ("protocol", "version", "request_id", "actor", "action", "context", "evidence", "confidence",
@@ -137,7 +138,14 @@ def _scale_level(req: dict, cfg: dict | None, key: str) -> dict:
 
 class Gate:
     def __init__(self, policy, *, resolver: Resolver | None = None, store=None, signer=None,
-                 clock: Callable[[], datetime] | None = None, max_request_bytes: int = MAX_REQUEST_BYTES):
+                 clock: Callable[[], datetime] | None = None, max_request_bytes: int = MAX_REQUEST_BYTES,
+                 mode: str = "enforce"):
+        """mode="shadow": every decision is computed and recorded exactly as in enforce mode, but records and
+        results are marked shadow (not enforced). Keep your existing approval process, record what people
+        decided with record_outcome(), and compare. A disagreement triggers the record's falsifier."""
+        if mode not in MODES:
+            raise ValueError(f"mode must be one of {MODES}")
+        self.mode = mode
         self.policy: Policy = load_policy(policy)   # raises PolicyError at startup: loud, before any action
         if resolver is not None and not callable(getattr(resolver, "resolve", None)):
             raise TypeError("resolver must have a resolve(request, gate_result) method")
@@ -278,7 +286,8 @@ class Gate:
             decision=ev["decision"], reason_code=ev["reason_code"], reason_codes=ev["reason_codes"],
             matched=[f for f in ev["findings"] if f["source"] != "default"], risk=ev["risk"],
             irr=ev["irreversibility"], evidence_present=ev["evidence_present"],
-            evidence_missing=ev["evidence_missing"], confidence=ev["confidence"], signer=self.signer)
+            evidence_missing=ev["evidence_missing"], confidence=ev["confidence"], signer=self.signer,
+            mode=self.mode)
         warnings = tuple(f"ignored unknown request field {k!r}" for k in ignored)
         err = self._persist(rec)
         if err:
@@ -287,7 +296,7 @@ class Gate:
             decision=ev["decision"], reason_code=ev["reason_code"], record=rec, risk_level=ev["risk"]["level"],
             irreversibility_level=ev["irreversibility"]["level"], matched_rules=tuple(rec.matched_rules),
             reason_codes=tuple(ev["reason_codes"]), missing_evidence=tuple(ev["evidence_missing"]),
-            gate_decision=ev["decision"], records=(rec,), warnings=warnings)
+            gate_decision=ev["decision"], records=(rec,), warnings=warnings, mode=self.mode)
         if result.decision == "ESCALATE" and self.resolver is not None and self.policy.resolver["enabled"]:
             esc_codes = {f["reason_code"] for f in ev["findings"] if f["decision"] == "ESCALATE"} | {ev["reason_code"]}
             if esc_codes & set(self.policy.resolver["not_resolvable"]):
@@ -330,7 +339,8 @@ class Gate:
             decision=final, reason_code=rrec.reason_code, record=rrec, risk_level=result.risk_level,
             irreversibility_level=result.irreversibility_level, matched_rules=result.matched_rules,
             reason_codes=result.reason_codes, missing_evidence=result.missing_evidence,
-            gate_decision=result.decision, records=(parent, rrec), resolution=summary, warnings=result.warnings)
+            gate_decision=result.decision, records=(parent, rrec), resolution=summary, warnings=result.warnings,
+            mode=self.mode)
 
     def _persist(self, rec: Record):
         if self.store is None:
@@ -370,13 +380,14 @@ class Gate:
             request_hash=request_hash, policy=self.policy, decision="ESCALATE", reason_code=rc.EVALUATION_FAILURE,
             reason_codes=[rc.EVALUATION_FAILURE], matched=[finding], risk={"level": "UNSPECIFIED", "source": "none"},
             irr={"level": "UNSPECIFIED", "source": "none"}, evidence_present=[], evidence_missing=[],
-            confidence={"supplied": None, "calibrated": False}, failure_detail=detail, signer=self.signer)
+            confidence={"supplied": None, "calibrated": False}, failure_detail=detail, signer=self.signer,
+            mode=self.mode)
         if parent is None:
             self._persist(rec)  # best effort; the failure is already the fail-closed outcome
         return GateResult(decision="ESCALATE", reason_code=rc.EVALUATION_FAILURE, record=rec,
                           risk_level="UNSPECIFIED", irreversibility_level="UNSPECIFIED",
                           matched_rules=("evaluation",), reason_codes=(rc.EVALUATION_FAILURE,),
-                          gate_decision="ESCALATE", records=(rec,), warnings=(detail,))
+                          gate_decision="ESCALATE", records=(rec,), warnings=(detail,), mode=self.mode)
 
     # ------------------------------------------------------------------ linked records
 

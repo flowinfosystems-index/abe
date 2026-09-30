@@ -1,6 +1,6 @@
 # FJP Gate v0.1 — Specification
 
-**Status:** v0.1.0 · 2026-09-29 · Flow Information Systems
+**Status:** v0.2.0 · 2026-09-30 · Flow Information Systems (v0.2 adds shadow mode §7.1 and replay §9)
 **Canonical URI:** https://fjp.flowinfo.co/abe/spec
 **Conformance:** FJP-CONF v0.1, Gate profile (`abe conformance`)
 **Reference implementation:** **Abe** — *Act. Block. Escalate.* (`pip install abe-ai` · `npm install abe-ai`)
@@ -162,6 +162,27 @@ Keys are local PEM files. Signing MUST NOT require Flow infrastructure.
 
 Status is `open` until triggered, or `expired` once the action completed as asserted or `expires_at` passes.
 
+### 7.1 Shadow mode
+
+A Gate MAY run in **shadow mode** (`mode: "shadow"`; CLI `--shadow` or `ABE_MODE=shadow`) so a team can compare its
+decisions with the people who approve actions today, before letting it enforce.
+
+- Evaluation MUST be identical to enforce mode: same `decision`, `reason_code`, `matched_rules`, `request_hash`,
+  and the same result, response and CLI exit code. Shadow mode never lets an action run that enforce mode would stop.
+- Every record created in shadow mode (DECISION, RESOLUTION, OUTCOME) carries `"mode": "shadow"`. Enforce-mode records
+  carry no `mode` field, so they are byte-identical to v0.1. Responses add `"mode": "shadow"`.
+- `action.directive` begins `SHADOW: not enforced.` and names the decision the Gate would have made.
+- Resolvers are still consulted, so their calls can be compared too (a Flow resolver still uses credits).
+- The falsifier asserts agreement with the people handling the action, reported as linked OUTCOME records:
+
+| Shadow record | Triggered (people disagreed) when an OUTCOME reports |
+|---|---|
+| ACT | `rejected`, `cancelled`, `failed` or `reverted` |
+| BLOCK | `approved` or `executed` |
+| ESCALATE | `executed` with `details.human_reviewed: false` (review was unnecessary) |
+
+Any other outcome settles the record as `expired` (agreement). Agreement rate = settled records not triggered.
+
 ## 8. Storage and telemetry
 
 Default: no storage; the record is returned to the caller. Optional append-only stores: memory, JSON Lines file,
@@ -173,8 +194,13 @@ network and no Flow account, and MUST NOT call home. Any future telemetry MUST b
 - **Library:** `Gate(policy).check(...)` (Python, sync) / `await new Gate({policy}).check(...)` (TypeScript).
 - **CLI:** `abe init | check | validate-policy | validate-record | conformance | serve | mcp | keygen | outcome`.
   `abe check` exits 0 ACT, 10 BLOCK, 20 ESCALATE.
+- **Replay:** `abe replay CASES [--policy P] [--baseline B] [--fail-on-change] [--json [--all]]` evaluates saved
+  requests (`.jsonl`, `.json`, or a directory) and reports decision counts, changes against a baseline policy, and
+  mismatches against an optional `expected` decision per case (`{"id", "request", "expected"}`). No store, signer,
+  resolver or network. Exits 1 on any expected mismatch (or any change with `--fail-on-change`), 2 on bad input.
+  Python and TypeScript produce identical JSON reports.
 - **HTTP (local):** `abe serve` — `POST /v1/check`, `POST /v1/outcome`, `GET /v1/records/{id}`,
-  `POST /v1/records/{id}/evaluate`, `GET /healthz`. Binds `127.0.0.1`; any other interface requires `--allow-remote`
+  `POST /v1/records/{id}/evaluate`, `GET /healthz` (includes `mode`). Binds `127.0.0.1`; any other interface requires `--allow-remote`
   and a bearer token.
 - **MCP:** `abe mcp` — tools `fjp_check_action`, `fjp_report_outcome`, `fjp_get_record`, with agent instructions:
   *call before consequential actions; never execute on BLOCK; follow the escalation path on ESCALATE.*

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "abe-ai"
-version = "0.1.0"
+version = "0.2.0"
 description = "Abe: one control point before an AI agent acts. Deterministic ACT / BLOCK / ESCALATE with an immutable Judgment-Grounded Record. Local, offline, no account."
 readme = "README.md"
 requires-python = ">=3.10"

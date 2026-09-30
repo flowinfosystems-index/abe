@@ -102,6 +102,13 @@
       "items": {
         "$ref": "jgr.schema.json"
       }
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "shadow"
+      ],
+      "description": "Present only in shadow mode."
     }
   },
   "additionalProperties": true

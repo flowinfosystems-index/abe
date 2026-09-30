@@ -105,7 +105,7 @@ def _action_summary(action: dict) -> str:
 
 def build_decision_record(*, record_id, request_id, now, eval_time, time_source, req, request_hash, policy,
                           decision, reason_code, reason_codes, matched, risk, irr, evidence_present,
-                          evidence_missing, confidence, failure_detail=None, signer=None) -> Record:
+                          evidence_missing, confidence, failure_detail=None, signer=None, mode="enforce") -> Record:
     actor = req.get("actor") or {}
     rec, expires = _base(record_id=record_id, request_id=request_id, root_id=record_id, parent_id=None,
                          event_type="DECISION", now=now, horizon_days=policy.falsifier_horizon_days if policy else 30,
@@ -125,7 +125,10 @@ def build_decision_record(*, record_id, request_id, now, eval_time, time_source,
         assessment += f" Evaluation failure: {failure_detail}."
     assessment += " This is a policy result, not an independent judgment that the action is optimal."
 
-    if decision == "ACT":
+    if mode == "shadow":
+        assessment += " Shadow mode: recorded for comparison, not enforced."
+        directive, condition = _shadow_directive(decision, agent, atype, record_id, expires)
+    elif decision == "ACT":
         directive = f"ACT: {agent} may execute {atype} as evaluated."
         condition = (f"An OUTCOME record linked to {record_id} reports status failed or reverted, or reports an "
                      f"executed request_hash other than {request_hash}, before {expires}.")
@@ -172,7 +175,25 @@ def build_decision_record(*, record_id, request_id, now, eval_time, time_source,
     })
     if failure_detail:
         rec["evaluation_error"] = str(failure_detail)[:500]
+    if mode == "shadow":
+        rec["mode"] = "shadow"          # present only in shadow mode: enforce-mode records are unchanged
     return finalize(rec, signer)
+
+
+def _shadow_directive(decision, agent, atype, record_id, expires) -> tuple[str, str]:
+    """Shadow records assert agreement with the human process they run beside, so a linked OUTCOME can falsify them."""
+    directive = (f"SHADOW: not enforced. Abe would {decision} {atype}; {agent} follows its existing approval "
+                 f"process and reports the outcome to {record_id}.")
+    if decision == "ACT":
+        condition = (f"An OUTCOME record linked to {record_id} reports status rejected, cancelled, failed or reverted "
+                     f"(the people disagreed with ACT) before {expires}.")
+    elif decision == "BLOCK":
+        condition = (f"An OUTCOME record linked to {record_id} reports status approved or executed "
+                     f"(the people disagreed with BLOCK) before {expires}.")
+    else:
+        condition = (f"An OUTCOME record linked to {record_id} reports status executed with details.human_reviewed "
+                     f"false (it ran without review, so ESCALATE was unnecessary) before {expires}.")
+    return directive, condition
 
 
 def build_resolution_record(*, record_id, parent: Record, now, resolution, final_decision, horizon_days,
@@ -201,6 +222,12 @@ def build_resolution_record(*, record_id, parent: Record, now, resolution, final
     directive = {"ACT": f"ACT: execute {atype} as evaluated in {parent.record_id}.",
                  "BLOCK": f"BLOCK: do not execute {atype}.",
                  "ESCALATE": f"ESCALATE: {atype} still requires a human or another resolver."}[final_decision]
+    shadow = parent.get("mode") == "shadow"
+    if shadow:
+        directive, shadow_condition = _shadow_directive(final_decision, parent.actor.get("agent_id") or "agent",
+                                                        atype, parent.root_record_id, expires)
+        if not falsifiers:
+            condition = shadow_condition
     rec.update({
         "decision": final_decision,
         "original_gate_decision": parent.decision,
@@ -231,6 +258,8 @@ def build_resolution_record(*, record_id, parent: Record, now, resolution, final
     })
     if error:
         rec["resolution_error"] = str(error)[:500]
+    if shadow:
+        rec["mode"] = "shadow"
     return finalize(rec, signer)
 
 
@@ -253,6 +282,8 @@ def build_outcome_record(*, record_id, parent: Record, now, status, details, hor
                                     f"than {status} before {expires}."),
                       "checkable": True, "status": "open"},
     })
+    if parent.get("mode") == "shadow":
+        rec["mode"] = "shadow"
     return finalize(rec, signer)
 
 
@@ -274,6 +305,19 @@ def evaluate_falsifier(record, linked: list, now: datetime | None = None) -> str
         if any(o.get("status") != r.get("status") for o in later):
             return "triggered"
         return "expired" if expired else "open"
+
+    if r.get("mode") == "shadow":
+        # triggered = the people handling the action disagreed with Abe's (unenforced) decision
+        if dec == "ACT":
+            hit = any(o.get("status") in ("rejected", "cancelled", "failed", "reverted") for o in outcomes)
+        elif dec == "BLOCK":
+            hit = any(o.get("status") in ("approved", "executed") for o in outcomes)
+        else:
+            hit = any(o.get("status") == "executed" and (o.get("details") or {}).get("human_reviewed") is False
+                      for o in outcomes)
+        if hit:
+            return "triggered"
+        return "expired" if outcomes or expired else "open"
 
     if et == "RESOLUTION" or dec == "ACT":
         for o in outcomes:

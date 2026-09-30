@@ -71,7 +71,8 @@ def make_handler(gate: Gate, token: str | None):
 
         def do_GET(self):  # noqa: N802
             if self.path == "/healthz":
-                return self._send(200, {"status": "ok", "version": __version__, "policy_hash": gate.policy.hash})
+                return self._send(200, {"status": "ok", "version": __version__, "policy_hash": gate.policy.hash,
+                                        "mode": gate.mode})
             if not self._authorized():
                 return self._send(401, {"error": "unauthorized"})
             if self.path.startswith("/v1/records/"):
@@ -131,7 +132,8 @@ def serve(gate: Gate, host: str = "127.0.0.1", port: int = 8787, token: str | No
             raise SystemExit("--allow-remote requires --token (or ABE_TOKEN) so the endpoint is not open")
     httpd = ThreadingHTTPServer((host, port), make_handler(gate, token))
     print(f"Abe {__version__} listening on http://{host}:{port}  policy {gate.policy.hash[:19]}…"
-          f"  store={'none' if gate.store is None else type(gate.store).__name__}")
+          f"  store={'none' if gate.store is None else type(gate.store).__name__}"
+          + ("  mode=shadow (recorded, not enforced)" if gate.mode == "shadow" else ""))
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

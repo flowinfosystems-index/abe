@@ -70,7 +70,51 @@ for c, p, t in zip(cases, py, ts):
     if not (verify_hash(t) and verify_signature(t, pub) and fjp_conf.conforms(fjp_conf.evaluate(t, 2))):
         problems.append(f"{c['id']}: TypeScript record fails in Python")
 
-print(f"cross-language parity: {len(cases)} fixtures, {len(problems)} problem(s)")
+# Shadow mode: same decisions as enforce, records marked, and each SDK's shadow records verify in the other.
+from abe.replay import replay  # noqa: E402
+
+gs = Gate(os.path.join(FIX, "policies", "standard.yaml"), signer=Signer(priv, "x:1"), mode="shadow")
+py_shadow = [gs.check(r).record.to_dict() for r in reqs]
+json.dump(py_shadow, open(os.path.join(tmp, "py_shadow.json"), "w"))
+cases_path = os.path.join(tmp, "cases.jsonl")
+with open(cases_path, "w") as fh:
+    for c, r in zip(cases, reqs):
+        fh.write(json.dumps({"id": c["id"], "request": r, "expected": c["expect"]["decision"]}) + "\n")
+node2 = f"""
+import {{ readFileSync, writeFileSync }} from 'node:fs';
+import {{ Gate, Ed25519Signer, verifyHash, verifySignature, fjpConf, replay, loadCases }} from '{ROOT}/typescript/dist/index.js';
+const t = '{tmp}';
+const reqs = JSON.parse(readFileSync(t + '/reqs.json', 'utf8'));
+const g = new Gate({{ policy: '{FIX}/policies/standard.yaml', signer: Ed25519Signer.fromFile(t + '/k.pem', 'x:1'), mode: 'shadow' }});
+const out = [];
+for (const r of reqs) out.push((await g.check(r)).record);
+writeFileSync(t + '/ts_shadow.json', JSON.stringify(out));
+const pub = readFileSync(t + '/k.pub.pem', 'utf8');
+const bad = JSON.parse(readFileSync(t + '/py_shadow.json', 'utf8')).filter(r => !(r.mode === 'shadow' && verifyHash(r) && verifySignature(r, pub) && fjpConf.conforms(fjpConf.evaluate(r, 2))));
+const rep = await replay(loadCases(t + '/cases.jsonl'), '{FIX}/policies/standard.yaml', '{FIX}/policies/standard.yaml');
+console.log(JSON.stringify({{ bad: bad.map(r => r.record_id), replay: rep }}));
+"""
+res2 = subprocess.run(["node", "--input-type=module", "-e", node2], capture_output=True, text=True)
+if res2.returncode:
+    print(res2.stderr)
+    sys.exit(1)
+ts2 = json.loads(res2.stdout.strip().splitlines()[-1])
+ts_shadow = json.load(open(os.path.join(tmp, "ts_shadow.json")))
+problems += [f"python shadow record {x} fails in TypeScript" for x in ts2["bad"]]
+for c, p, s, t in zip(cases, py, py_shadow, ts_shadow):
+    if s["decision"] != p.decision or t["decision"] != p.decision:
+        problems.append(f"{c['id']}: shadow decision differs from enforce")
+    if not (t.get("mode") == "shadow" and verify_hash(t) and verify_signature(t, pub)
+            and fjp_conf.conforms(fjp_conf.evaluate(t, 2))):
+        problems.append(f"{c['id']}: TypeScript shadow record fails in Python")
+    if s["action"]["directive"].split(";")[0] != t["action"]["directive"].split(";")[0]:
+        problems.append(f"{c['id']}: shadow directive differs")
+py_rep = replay([json.loads(line) for line in open(cases_path)], os.path.join(FIX, "policies", "standard.yaml"),
+                os.path.join(FIX, "policies", "standard.yaml"))
+if py_rep != ts2["replay"]:
+    problems.append("replay report differs between Python and TypeScript")
+
+print(f"cross-language parity: {len(cases)} fixtures (+ shadow, replay), {len(problems)} problem(s)")
 for x in problems:
     print("  -", x)
 sys.exit(1 if problems else 0)

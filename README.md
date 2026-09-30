@@ -81,12 +81,41 @@ Also: authorization per agent, required evidence, risk and irreversibility thres
 `BLOCK` beats `ESCALATE` beats `ACT`. Bad input or a broken rule returns `ESCALATE` / `EVALUATION_FAILURE`, never `ACT`.
 Full reference: [`SPEC.md`](SPEC.md).
 
+## Test before you enforce
+
+**Replay** saved requests through a policy before it touches real money. Label each case with what your people
+decided and Abe reports where it disagrees; compare against the live policy to see exactly which decisions a change moves.
+
+```bash
+# cases.jsonl: one request per line, or {"id": "inv-1042", "request": {...}, "expected": "BLOCK"}
+abe replay cases.jsonl --policy new-policy.yaml --baseline abe-policy.yaml
+#   Replayed 1204 case(s) against ...      ACT 1088   BLOCK 31   ESCALATE 85
+#   Changed vs baseline: 3                 inv-1042: ACT -> ESCALATE  [purchase_review_limit]
+#   Agreement with expected: 1198/1204 (99.5%)
+abe replay cases.jsonl --policy new-policy.yaml --baseline abe-policy.yaml --fail-on-change   # CI: exit 1 if anything moved
+```
+
+**Shadow mode** runs Abe beside your current approval process. Decisions, results and exit codes are exactly what
+enforce mode would return, and every record is marked `"mode": "shadow"`. Keep approving the way you do today,
+report what your people decided, and each record's falsifier shows whether they agreed.
+
+```python
+from abe.stores import SQLiteStore
+
+abe = Abe("abe-policy.yaml", mode="shadow", store=SQLiteStore("abe.db"))    # or: abe serve --shadow · ABE_MODE=shadow
+r = abe.check(action={"type": "purchase", "amount": 48000}, context={"agent_id": "ap-agent"})
+# ... your existing approval happens ...
+abe.record_outcome(r.records[0], "approved")    # people approved; if Abe said BLOCK, the falsifier triggers
+```
+
+When the agreement rate is where you want it, drop `mode="shadow"` and Abe enforces.
+
 ## Every way to run it
 
 | | |
 |---|---|
 | Library | `pip install abe-ai` · `npm install abe-ai` |
-| CLI | `abe check · validate-policy · validate-record · conformance · keygen` |
+| CLI | `abe check · replay · validate-policy · validate-record · conformance · keygen` |
 | Local HTTP sidecar | `abe serve --policy abe-policy.yaml` → `POST http://127.0.0.1:8787/v1/check` (any language) |
 | Docker sidecar | `docker run -e ABE_TOKEN=… -v $PWD:/policy:ro -p 127.0.0.1:8787:8787 ghcr.io/flowinfosystems-index/abe` |
 | MCP server | `pip install "abe-ai[mcp]"` → `abe mcp --policy /abs/abe-policy.yaml` (tool: `fjp_check_action`) |

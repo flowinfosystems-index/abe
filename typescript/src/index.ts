@@ -2,7 +2,8 @@
  * abe-ai — Abe is one control point before an AI agent acts.
  * Deterministic ACT / BLOCK / ESCALATE plus an immutable Judgment-Grounded Record. Local, offline, no account.
  */
-export { Gate, Gate as Abe, normalizeRequest, type FJPRequest, type GateOptions, type GateResult, type Resolver } from "./gate.js";
+export { Gate, Gate as Abe, normalizeRequest, MODES, type Mode, type FJPRequest, type GateOptions, type GateResult, type Resolver } from "./gate.js";
+export { replay, loadCases, formatReport, ReplayInputError, type ReplayCase, type ReplayReport } from "./replay.js";
 export { loadPolicy, parsePolicy, type Policy, type Decision, LEVELS, DECISIONS } from "./policy.js";
 export { type JGR, type Resolution, type Signer, verifyHash, computeRecordHash, evaluateFalsifier, OUTCOME_STATUSES, type OutcomeStatus } from "./records.js";
 export { MemoryStore, FileStore, CallbackStore, storeFromUri, type RecordStore } from "./stores.js";

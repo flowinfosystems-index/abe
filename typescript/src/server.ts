@@ -44,7 +44,7 @@ export function createGateServer(gate: Gate, token?: string | null): Server {
   return createServer(async (req, res) => {
     try {
       const url = (req.url ?? "/").split("?")[0];
-      if (req.method === "GET" && url === "/healthz") return send(res, 200, { status: "ok", version: VERSION, policy_hash: gate.policy.hash });
+      if (req.method === "GET" && url === "/healthz") return send(res, 200, { status: "ok", version: VERSION, policy_hash: gate.policy.hash, mode: gate.mode });
       if (!authorized(req)) return send(res, 401, { error: "unauthorized" });
       if (req.method === "GET" && url.startsWith("/v1/records/")) {
         const id = decodeURIComponent(url.slice("/v1/records/".length));
@@ -109,7 +109,7 @@ export function serve(gate: Gate, opts: { host?: string; port?: number; token?: 
   }
   const srv = createGateServer(gate, opts.token);
   srv.listen(port, host, () => {
-    console.log(`Abe ${VERSION} (TypeScript) listening on http://${host}:${port}  policy ${gate.policy.hash.slice(0, 19)}…`);
+    console.log(`Abe ${VERSION} (TypeScript) listening on http://${host}:${port}  policy ${gate.policy.hash.slice(0, 19)}…${gate.mode === "shadow" ? "  mode=shadow (recorded, not enforced)" : ""}`);
   });
   return srv;
 }

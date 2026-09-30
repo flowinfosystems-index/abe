@@ -55,6 +55,10 @@ export interface GateResult {
   warnings: string[];
   /** True only for ACT. BLOCK and ESCALATE both mean: do not execute now. */
   allowed: boolean;
+  /** "shadow": recorded for comparison, not enforced. */
+  mode: Mode;
+  /** False in shadow mode: keep your existing approval process and don't act on `decision`. */
+  enforced: boolean;
   /** The FJP v0.1 response format (snake_case, as on the wire). */
   toResponse(): Record<string, unknown>;
 }
@@ -63,6 +67,9 @@ export interface GateResult {
 export interface Resolver {
   resolve(request: Record<string, unknown>, gateResult: GateResult): Promise<Resolution | null> | Resolution | null;
 }
+
+export type Mode = "enforce" | "shadow";
+export const MODES: readonly Mode[] = ["enforce", "shadow"];
 
 export interface GateOptions {
   policy: Policy | Record<string, unknown> | string;
@@ -73,6 +80,9 @@ export interface GateOptions {
   maxRequestBytes?: number;
   /** Upper bound on a resolver call; on timeout the result stays ESCALATE. Default 15 s. */
   resolverTimeoutMs?: number;
+  /** "shadow": decisions are computed and recorded exactly as in enforce mode, but marked not enforced.
+   *  Keep your existing approval process, record what people decided with recordOutcome(), and compare. */
+  mode?: Mode;
 }
 
 type Req = { actor: Record<string, unknown>; action: Record<string, unknown>; context: Record<string, unknown>;
@@ -139,12 +149,13 @@ function scaleLevel(req: Req, cfg: Scale | null, key: "risk" | "irreversibility"
   return { level: lvl, source: src, supplied, mapped };
 }
 
-function makeResult(f: Omit<GateResult, "recordId" | "timestamp" | "allowed" | "toResponse">): GateResult {
+function makeResult(f: Omit<GateResult, "recordId" | "timestamp" | "allowed" | "toResponse" | "enforced">): GateResult {
   const r: GateResult = {
     ...f,
     recordId: f.record.record_id,
     timestamp: f.record.timestamp,
     allowed: f.decision === "ACT",
+    enforced: f.mode !== "shadow",
     toResponse() {
       const out: Record<string, unknown> = { protocol: "FJP", version: "0.1", decision: r.decision, reason_code: r.reasonCode,
         risk_level: r.riskLevel, record_id: r.recordId, timestamp: r.timestamp };
@@ -155,6 +166,7 @@ function makeResult(f: Omit<GateResult, "recordId" | "timestamp" | "allowed" | "
         out.gate_record_id = r.records[0].record_id;
       }
       if (r.resolution) out.resolution = { ...r.resolution };
+      if (r.mode === "shadow") out.mode = "shadow";
       return out;
     },
   };
@@ -169,10 +181,14 @@ export class Gate {
   private readonly clock: () => Date;
   private readonly maxRequestBytes: number;
   private readonly resolverTimeoutMs: number;
+  readonly mode: Mode;
 
   /** Throws PolicyError at construction if the policy is invalid: loud, at startup, before any action. */
   constructor(opts: GateOptions | string) {
     const o: GateOptions = typeof opts === "string" ? { policy: opts } : opts;
+    const mode = o.mode ?? "enforce";
+    if (!MODES.includes(mode)) throw new TypeError(`mode must be one of ${MODES.join(", ")}`);
+    this.mode = mode;
     this.policy = loadPolicy(o.policy);
     if (o.resolver && typeof o.resolver.resolve !== "function") throw new TypeError("resolver must have a resolve() method");
     this.resolver = o.resolver ?? null;
@@ -290,13 +306,13 @@ export class Gate {
     const rec = buildDecisionRecord({ recordId: newId("jgr"), requestId: req.request_id, now, evalTime, timeSource, req,
       requestHash, policy: this.policy, decision: ev.decision, reasonCode: ev.reason, reasonCodes: ev.codes,
       matched: ev.findings.filter((f) => f.source !== "default"), risk: ev.risk, irr: ev.irr, evidencePresent: ev.presentKeys,
-      evidenceMissing: ev.missing, confidence: ev.confInfo, signer: this.signer });
+      evidenceMissing: ev.missing, confidence: ev.confInfo, signer: this.signer, mode: this.mode });
     const warnings = ignored.map((k) => `ignored unknown request field '${k}'`);
     const err = await this.persist(rec);
     if (err) return this.failure(request, now, err, rec);
     const result = makeResult({ decision: ev.decision, reasonCode: ev.reason, record: rec, riskLevel: ev.risk.level,
       irreversibilityLevel: ev.irr.level, matchedRules: [...rec.matched_rules], reasonCodes: ev.codes,
-      missingEvidence: ev.missing, gateDecision: ev.decision, records: [rec], resolution: null, warnings });
+      missingEvidence: ev.missing, gateDecision: ev.decision, records: [rec], resolution: null, warnings, mode: this.mode });
     if (result.decision === "ESCALATE" && this.resolver && this.policy.resolver.enabled) {
       const esc = new Set([ev.reason, ...ev.findings.filter((f) => f.decision === "ESCALATE").map((f) => f.reason_code)]);
       if (this.policy.resolver.not_resolvable.some((c) => esc.has(c))) return result;
@@ -336,7 +352,7 @@ export class Gate {
     if (resolution) Object.assign(summary, { reason: resolution.reason, confidence: resolution.confidence ?? null, falsifiers: [...(resolution.falsifiers ?? [])] });
     if (error) summary.error = error;
     return makeResult({ ...result, decision: final, reasonCode: rrec.reason_code, record: rrec, gateDecision: result.decision,
-      records: [parent, rrec], resolution: summary });
+      records: [parent, rrec], resolution: summary, mode: this.mode });
   }
 
   private async persist(rec: JGR): Promise<Error | null> {
@@ -372,11 +388,12 @@ export class Gate {
       req: { actor: safeActor, action: { type: atype.slice(0, 128) } }, requestHash, policy: this.policy, decision: "ESCALATE",
       reasonCode: "EVALUATION_FAILURE", reasonCodes: ["EVALUATION_FAILURE"], matched: [finding],
       risk: { level: "UNSPECIFIED", source: "none" }, irr: { level: "UNSPECIFIED", source: "none" }, evidencePresent: [],
-      evidenceMissing: [], confidence: { supplied: null, calibrated: false }, failureDetail: detail, signer: this.signer });
+      evidenceMissing: [], confidence: { supplied: null, calibrated: false }, failureDetail: detail, signer: this.signer,
+      mode: this.mode });
     if (!parent) await this.persist(rec);
     return makeResult({ decision: "ESCALATE", reasonCode: "EVALUATION_FAILURE", record: rec, riskLevel: "UNSPECIFIED",
       irreversibilityLevel: "UNSPECIFIED", matchedRules: ["evaluation"], reasonCodes: ["EVALUATION_FAILURE"], missingEvidence: [],
-      gateDecision: "ESCALATE", records: [rec], resolution: null, warnings: [detail] });
+      gateDecision: "ESCALATE", records: [rec], resolution: null, warnings: [detail], mode: this.mode });
   }
 
   private async get(recordOrId: JGR | GateResult | string): Promise<JGR> {
