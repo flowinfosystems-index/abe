@@ -18,6 +18,7 @@ jobs:
       - run: pip install build && python scripts/sync_fixtures.py --check
       - run: python -m build python --outdir dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with: { skip-existing: true }   # a release may bump only some packages
 
   pypi-flow:
     needs: pypi          # abe-flow depends on abe-ai, so publish abe-ai first
@@ -31,6 +32,7 @@ jobs:
       - run: pip install build
       - run: python -m build flow-resolver --outdir dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with: { skip-existing: true }
 
   npm:
     runs-on: ubuntu-latest
@@ -41,7 +43,9 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20, registry-url: "https://registry.npmjs.org" }
       - run: npm ci && npm test
-      - run: npm publish --access public --provenance
+      - run: |
+          V=$(node -p "require('./package.json').version")
+          if npm view "abe-ai@$V" version >/dev/null 2>&1; then echo "abe-ai@$V already on npm; skipping"; else npm publish --access public --provenance; fi
         env: { NODE_AUTH_TOKEN: "${{ secrets.NPM_TOKEN }}" }
 
   docker:
