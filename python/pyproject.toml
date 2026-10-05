@@ -25,7 +25,7 @@ dependencies = ["PyYAML>=6.0"]
 signing = ["cryptography>=42"]
 mcp = ["mcp>=1.27,<2"]
 all = ["cryptography>=42", "mcp>=1.27,<2"]
-dev = ["pytest>=8", "cryptography>=42", "jsonschema>=4"]
+dev = ["pytest>=8", "cryptography>=42", "jsonschema>=4", "fjp-conformance>=0.1.2,<0.2; python_version >= '3.11'"]  # reference suite for the drift test (needs 3.11+)
 
 [project.scripts]
 abe = "abe.cli:main"

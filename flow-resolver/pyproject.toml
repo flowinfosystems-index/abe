@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "abe-flow"
-version = "0.1.2"
+version = "0.1.3"
 description = "Send Abe escalations to Flow's judgment service (resolve.flowinfo.co). Only ESCALATE results are sent."
 readme = "README.md"
 requires-python = ">=3.10"

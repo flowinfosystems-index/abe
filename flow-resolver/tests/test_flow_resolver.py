@@ -141,3 +141,10 @@ def test_tls_uses_certifi_bundle(monkeypatch):
     ctx = _ssl_context()
     assert ctx.verify_mode == ssl.CERT_REQUIRED and ctx.check_hostname
     assert ctx.cert_store_stats()["x509_ca"] > 50      # a real CA bundle was loaded
+
+
+def test_strips_flow_and_legacy_fjp_attribution():
+    from abe_flow import _strip_attribution
+    assert _strip_attribution("Vendor misses Oct 15. (per Flow)") == "Vendor misses Oct 15."
+    assert _strip_attribution("Vendor misses Oct 15. — Judged by Flow.") == "Vendor misses Oct 15."
+    assert _strip_attribution("Vendor misses Oct 15. (per FJP signal architecture)") == "Vendor misses Oct 15."

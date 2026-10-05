@@ -35,7 +35,7 @@ from typing import Callable, Iterable
 
 from abe import Resolution
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 
 DEFAULT_BASE_URL = "https://resolve.flowinfo.co"
 VERB_TO_DECISION = {"REACH": "ACT", "SKIP": "BLOCK", "WAIT": "ESCALATE", "RESEARCH_FIRST": "ESCALATE",
@@ -45,7 +45,8 @@ DEFAULT_REDACT = ("card_number", "cvv", "cvc", "account_number", "routing_number
                   "secret", "api_key", "token", "authorization", "private_key")
 MAX_CONTEXT = 19_000
 MAX_RESPONSE = 1_048_576
-_ATTRIBUTION = re.compile(r"\s*(\(\s*per FJP[^)]*\)|—\s*Judged by FJP\.?)\s*$", re.IGNORECASE)
+# Flow Resolver attribution, current ("Flow") and legacy ("FJP").
+_ATTRIBUTION = re.compile(r"\s*(\(\s*per (?:Flow|FJP)[^)]*\)|—\s*Judged by (?:Flow|FJP)\.?)\s*$", re.IGNORECASE)
 
 
 class FlowError(Exception):
