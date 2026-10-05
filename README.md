@@ -1,5 +1,7 @@
 # Abe
 
+<p align="left"><img src="https://raw.githubusercontent.com/flowinfosystems-index/abe/main/docs/abe-mascot.png" width="160" alt="Abe, a friendly traffic light giving a thumbs up"></p>
+
 ### Act. Block. Escalate.
 
 > **Abe is one control point before an AI agent acts.** The reference implementation of FJP Gate.

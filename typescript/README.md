@@ -1,5 +1,7 @@
 # Abe (TypeScript / Node ≥ 18) — `npm install abe-ai`
 
+<p align="left"><img src="https://raw.githubusercontent.com/flowinfosystems-index/abe/main/docs/abe-mascot.png" width="160" alt="Abe, a friendly traffic light giving a thumbs up"></p>
+
 > **Abe is one control point before an AI agent acts.**
 
 It checks a proposed action against your policy and returns **`ACT`**, **`BLOCK`** or **`ESCALATE`**, plus an immutable,
