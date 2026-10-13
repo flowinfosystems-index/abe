@@ -1,0 +1,21 @@
+# Abe MCP server (stdio) — for MCP clients and directories that run servers in a container.
+#   docker build -f Dockerfile.mcp -t abe-mcp .
+#   docker run --rm -i abe-mcp                                         # built-in starter policy
+#   docker run --rm -i -v "$PWD:/policy:ro" -e ABE_POLICY=/policy/abe-policy.yaml abe-mcp
+#   docker run --rm -i -e ABE_RESOLVER=flow -e FLOW_API_KEY=fjp_live_... abe-mcp   # escalations to Flow
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 ABE_POLICY=/app/abe-policy.yaml
+
+COPY python /src/python
+COPY flow-resolver /src/flow-resolver
+RUN pip install --no-cache-dir "/src/python[mcp]" /src/flow-resolver && rm -rf /src \
+    && useradd --system --uid 10001 abe && mkdir -p /app \
+    && cd /app && abe init --policy-out abe-policy.yaml --request-out request.json >/dev/null \
+    && chown -R abe /app
+
+USER abe
+WORKDIR /app
+
+# stdio transport: stdout carries MCP messages only
+ENTRYPOINT ["abe", "mcp"]

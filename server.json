@@ -1,0 +1,46 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.flowinfosystems-index/abe",
+  "title": "Abe",
+  "description": "Free, local check before an AI agent acts: your rules return ACT, BLOCK or ESCALATE.",
+  "version": "0.2.3",
+  "websiteUrl": "https://fjp.flowinfo.co/abe",
+  "repository": {
+    "url": "https://github.com/flowinfosystems-index/abe",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "abe-ai",
+      "version": "0.2.3",
+      "runtimeHint": "uvx",
+      "runtimeArguments": [
+        { "type": "named", "name": "--from", "value": "abe-ai[mcp,flow]==0.2.3" }
+      ],
+      "packageArguments": [
+        { "type": "positional", "value": "mcp" }
+      ],
+      "transport": { "type": "stdio" },
+      "environmentVariables": [
+        {
+          "name": "ABE_POLICY",
+          "description": "Absolute path to your abe-policy.yaml (create one with: uvx abe-ai init)",
+          "isRequired": true,
+          "format": "filepath"
+        },
+        {
+          "name": "ABE_RESOLVER",
+          "description": "Set to flow to send escalations to Flow (needs FLOW_API_KEY). Default: none, nothing leaves your machine.",
+          "choices": ["none", "flow"],
+          "default": "none"
+        },
+        {
+          "name": "FLOW_API_KEY",
+          "description": "Flow Resolver key (fjp_live_...), only with ABE_RESOLVER=flow. https://fjp.flowinfo.co/credits",
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

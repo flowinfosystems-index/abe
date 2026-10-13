@@ -1,5 +1,7 @@
 # Abe (Python) — `pip install abe-ai`
 
+<!-- mcp-name: io.github.flowinfosystems-index/abe -->
+
 <p align="left"><img src="https://raw.githubusercontent.com/flowinfosystems-index/abe/main/docs/abe-mascot.png" width="160" alt="Abe, a friendly traffic light giving a thumbs up"></p>
 
 ### Act. Block. Escalate.

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.3 — 2026-10-13 (abe-ai, PyPI)
+
+- Listed in the official MCP Registry as `io.github.flowinfosystems-index/abe` (`server.json`, ownership line in the
+  PyPI page).
+- `abe-ai` command, same as `abe`, so `uvx abe-ai mcp` works. No other changes.
+- `Dockerfile.mcp`: the MCP server in a container, with a built-in starter policy.
+
 ## 0.2.2 — 2026-10-13 (abe-ai, PyPI)
 
 - PyPI page: new opening (what Abe does, free, 40-second demo video), `abe replay` and `--resolver flow` listed,
