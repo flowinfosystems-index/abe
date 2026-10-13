@@ -148,3 +148,22 @@ def test_strips_flow_and_legacy_fjp_attribution():
     assert _strip_attribution("Vendor misses Oct 15. (per Flow)") == "Vendor misses Oct 15."
     assert _strip_attribution("Vendor misses Oct 15. — Judged by Flow.") == "Vendor misses Oct 15."
     assert _strip_attribution("Vendor misses Oct 15. (per FJP signal architecture)") == "Vendor misses Oct 15."
+
+
+def test_request_delegates_the_decision():
+    # Flow must not read the routing rule itself as "a human must sign off" (seen live, Oct 2026).
+    fake = FakeFlow()
+    make(fake).check(ESC)
+    ctx = fake.calls[0][2]["context"]
+    assert "DELEGATED TO YOU" in ctx and "not by itself a reason to involve a human" in ctx
+    assert "SKIP = reject" in ctx and "duplicate" in ctx
+    assert "a human must decide" not in ctx
+    assert "FINANCIAL_THRESHOLD_EXCEEDED" in ctx           # routing reason still sent
+
+
+def test_framing_attribution_stripped_from_reason():
+    r = make(FakeFlow()).check(ESC)
+    assert r.resolution["reason"] == "Budget headroom and vendor history support this."
+    body = flow_reply()
+    body["framing"] = "Duplicate of PO-88412. — Judged by Flow."
+    assert make(FakeFlow(body=body)).check(ESC).resolution["reason"] == "Duplicate of PO-88412."

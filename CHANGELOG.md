@@ -1,5 +1,14 @@
 # Changelog
 
+## abe-flow 0.1.4 — 2026-10-13
+
+- Flow is now told plainly that the policy owner has delegated the decision to it: the rule that routed the action
+  is not by itself a reason to involve a human, with each verb defined (REACH approve, SKIP reject, ...). Live runs
+  showed Flow escalating well-supported actions "because the threshold requires human sign-off".
+- Flow's attribution suffix is stripped from the resolution reason, as it already was from the falsifier.
+- Same wording in the copyable JS resolver (`examples/flow/flow-resolver.mjs`).
+- `examples/demo/`: the $12,500 demo (terminal or Claude via MCP); reasons are shortened to fit on screen.
+
 ## 0.2.1 — 2026-10-13 (abe-ai, PyPI)
 
 - **`--resolver flow` on `abe check`, `abe serve` and `abe mcp`** (or `ABE_RESOLVER=flow`). Sends only ESCALATE

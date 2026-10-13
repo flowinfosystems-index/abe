@@ -35,7 +35,7 @@ from typing import Callable, Iterable
 
 from abe import Resolution
 
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 
 DEFAULT_BASE_URL = "https://resolve.flowinfo.co"
 VERB_TO_DECISION = {"REACH": "ACT", "SKIP": "BLOCK", "WAIT": "ESCALATE", "RESEARCH_FIRST": "ESCALATE",
@@ -129,12 +129,20 @@ class FlowResolver:
         rec = gate_result.record
         safe = redact(request, self.redact_keys)
         parts = [
-            "PRE-EXECUTION JUDGMENT (FJP Gate escalation).",
-            f"The agent's proposed action passed hard policy limits but the Gate escalated it: {rec.reason_code}"
-            f" (all reasons: {', '.join(rec.reason_codes)}). Matched: {', '.join(rec.matched_rules) or 'none'}.",
-            "Question: is this permitted action justified by the evidence, intent and context? "
-            "REACH = proceed, SKIP = do not proceed, WAIT = not now, RESEARCH_FIRST = establish more first, "
-            "ESCALATE = a human must decide.",
+            "PRE-EXECUTION DECISION, DELEGATED TO YOU.",
+            "An AI agent wants to take the action below. It is within the owner's hard limits. The owner's policy routes "
+            f"actions like this one to you for a decision instead of to a person (routing reason: {rec.reason_code}; "
+            f"all reasons: {', '.join(rec.reason_codes)}; rule: {', '.join(rec.matched_rules) or 'none'}). "
+            "Actions that require a human (human approval, user confirmation) are never sent to you, so the amount or "
+            "the rule that routed this here is not by itself a reason to involve a human. Decide on the evidence.",
+            "Answer with one verb:",
+            "REACH = approve: the evidence supports doing this now.",
+            "SKIP = reject: the evidence shows it should not happen (for example a duplicate, over budget, "
+            "unauthorized, or unjustified).",
+            "WAIT = not now: it may be right later; say what has to change.",
+            "RESEARCH_FIRST = one specific missing fact decides it; name that fact.",
+            "ESCALATE = only when the evidence genuinely conflicts or the stakes are beyond what evidence can settle.",
+            "Keep framing to one or two short sentences.",
             f"Actor: {json.dumps(safe.get('actor', {}), ensure_ascii=False)}",
             f"Proposed action: {json.dumps({k: v for k, v in safe.get('action', {}).items()}, ensure_ascii=False)}",
             f"Risk: {gate_result.risk_level}. Irreversibility: {gate_result.irreversibility_level}. "
@@ -194,7 +202,7 @@ class FlowResolver:
             raise FlowError(f"Flow returned an unknown verb {verb!r}")
         bucket = out.get("confidence") if out.get("confidence") in CONFIDENCE_VALUE else "low"
         jgr = out.get("jgr") if isinstance(out.get("jgr"), dict) else None
-        framing = str(out.get("framing") or "").strip()
+        framing = _strip_attribution(str(out.get("framing") or ""))
         counter = _strip_attribution(str(out.get("counter_signal") or ""))
         evidence = {"flow_verb": verb, "flow_timing": out.get("timing"), "flow_confidence": bucket,
                     "flow_request_id": out.get("request_id")}

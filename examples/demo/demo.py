@@ -9,7 +9,10 @@ orders hit the same rule (over $10,000 needs judgment); only those two go to Flo
 scripted: whatever it decides is what you see.
 """
 import os
+import re
+import shutil
 import sys
+import textwrap
 import time
 
 from abe import Abe
@@ -29,6 +32,21 @@ COLOR = {"ACT": "32;1", "BLOCK": "31;1", "ESCALATE": "33;1"}
 def pause(s=1.0):
     if not FAST:
         time.sleep(s)
+
+
+WIDTH = min(shutil.get_terminal_size((100, 24)).columns, 110)
+
+
+def short(text, limit=200):
+    """At most two sentences and about `limit` characters, so a reason fits on screen."""
+    text = " ".join(str(text or "").split())
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    out = " ".join(sentences[:2])
+    return out if len(out) <= limit else out[: limit - 1].rsplit(" ", 1)[0] + "…"
+
+
+def wrap(prefix, text, indent=9):
+    return textwrap.fill(text, width=WIDTH, initial_indent=prefix, subsequent_indent=" " * indent)
 
 
 def say(s="", wait=0.6):
@@ -79,9 +97,10 @@ def main():
             say(f"   Abe:  {c(COLOR['ESCALATE'], 'ESCALATE')}  {r.records[0].reason_code}  -> asking Flow", 1.2)
             flow_decisions.append(r.decision)
             if res["status"] == "resolved":
-                say(f"   Flow: {c(COLOR[r.decision], r.decision)}  {res.get('reason', '')}", 0.8)
+                say(f"   Flow: {c(COLOR[r.decision], r.decision)}", 0.3)
+                say(wrap("         ", short(res.get("reason", ""))), 1.0)
                 if res.get("falsifiers"):
-                    say(c("2", f"   Wrong if: {res['falsifiers'][0]}"), 0.6)
+                    say(c("2", wrap("   Wrong if: ", short(res["falsifiers"][0], 160), 13)), 0.8)
             else:
                 say(f"   Flow: unavailable ({res.get('error', '?')}); stays {c(COLOR['ESCALATE'], 'ESCALATE')}", 0.8)
         else:

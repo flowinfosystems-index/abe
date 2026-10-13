@@ -28,9 +28,15 @@ export class FlowResolver {
   async resolve(request, gateResult) {
     const rec = gateResult.record, safe = redact(request);
     const context = [
-      "PRE-EXECUTION JUDGMENT (FJP Gate escalation).",
-      `The agent's proposed action passed hard policy limits but the Gate escalated it: ${rec.reason_code} (all reasons: ${rec.reason_codes.join(", ")}). Matched: ${rec.matched_rules.join(", ") || "none"}.`,
-      "Question: is this permitted action justified by the evidence, intent and context? REACH = proceed, SKIP = do not proceed, WAIT = not now, RESEARCH_FIRST = establish more first, ESCALATE = a human must decide.",
+      "PRE-EXECUTION DECISION, DELEGATED TO YOU.",
+      `An AI agent wants to take the action below. It is within the owner's hard limits. The owner's policy routes actions like this one to you for a decision instead of to a person (routing reason: ${rec.reason_code}; all reasons: ${rec.reason_codes.join(", ")}; rule: ${rec.matched_rules.join(", ") || "none"}). Actions that require a human (human approval, user confirmation) are never sent to you, so the amount or the rule that routed this here is not by itself a reason to involve a human. Decide on the evidence.`,
+      "Answer with one verb:",
+      "REACH = approve: the evidence supports doing this now.",
+      "SKIP = reject: the evidence shows it should not happen (for example a duplicate, over budget, unauthorized, or unjustified).",
+      "WAIT = not now: it may be right later; say what has to change.",
+      "RESEARCH_FIRST = one specific missing fact decides it; name that fact.",
+      "ESCALATE = only when the evidence genuinely conflicts or the stakes are beyond what evidence can settle.",
+      "Keep framing to one or two short sentences.",
       `Actor: ${JSON.stringify(safe.actor ?? {})}`, `Proposed action: ${JSON.stringify(safe.action ?? {})}`,
       `Risk: ${gateResult.riskLevel}. Irreversibility: ${gateResult.irreversibilityLevel}. Agent-supplied confidence (uncalibrated): ${safe.confidence ?? "not supplied"}.`,
       ...(gateResult.missingEvidence.length ? [`Missing evidence: ${gateResult.missingEvidence.join(", ")}.`] : []),
@@ -51,9 +57,10 @@ export class FlowResolver {
     const base = { resolverType: "FLOW", implementation: "abe-flow-js", implementationVersion: "0.1.0", reference: out.request_id,
       evidence: { flow_verb: out.verb, flow_timing: out.timing, flow_confidence: bucket, flow_request_id: out.request_id } };
     if (!out.jgr) return { ...base, decision: "ESCALATE", reason: "Flow returned degraded output without a record; not acted on.", reasonCode: "flow.degraded" };
-    let decision = VERB[out.verb], reason = out.framing || `Flow verb ${out.verb}.`;
+    const strip = (t) => { let p; t = String(t || "").trim(); do { p = t; t = t.replace(/\s*(\(\s*per (?:Flow|FJP)[^)]*\)|—\s*Judged by (?:Flow|FJP)\.?)\s*$/i, "").trim(); } while (p !== t); return t; };
+    let decision = VERB[out.verb], reason = strip(out.framing) || `Flow verb ${out.verb}.`;
     if (decision === "ACT" && !this.accept.has(bucket)) { decision = "ESCALATE"; reason = `Flow leaned REACH with ${bucket} confidence, below this resolver's bar; escalating. ` + reason; }
-    const falsifier = out.jgr.falsifier?.condition || out.counter_signal;
+    const falsifier = out.jgr.falsifier?.condition || strip(out.counter_signal);
     return { ...base, decision, reason, reasonCode: `flow.${out.verb.toLowerCase()}`, confidence: out.jgr.judgment?.confidence ?? CONF[bucket],
       falsifiers: falsifier ? [falsifier] : [], externalRecord: out.jgr };
   }
