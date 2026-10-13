@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.2 — 2026-10-13 (abe-ai, PyPI)
+
+- PyPI page: new opening (what Abe does, free, 40-second demo video), `abe replay` and `--resolver flow` listed,
+  `abe-ai[flow]` in the extras table. No code changes.
+
 ## abe-flow 0.1.4 — 2026-10-13
 
 - Flow is now told plainly that the policy owner has delegated the decision to it: the rule that routed the action

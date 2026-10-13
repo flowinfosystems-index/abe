@@ -3,7 +3,7 @@
 Deterministic ACT / BLOCK / ESCALATE plus an immutable Judgment-Grounded Record for every call.
 Runs entirely locally: no network, no model, no Flow account.
 """
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 
 from .exceptions import (EvaluationError, FJPError, PolicyError, RecordImmutableError,  # noqa: E402
                          RequestError, SigningError)
