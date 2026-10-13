@@ -4,11 +4,38 @@
 
 ### Act. Block. Escalate.
 
-> **Abe is one control point before an AI agent acts.** The reference implementation of FJP Gate.
+**Abe is a free, open-source guardrail that checks every AI agent action before it happens.**
 
-It checks a proposed action against your policy and returns **`ACT`**, **`BLOCK`** or **`ESCALATE`**, plus an immutable,
-hash-verified **Judgment-Grounded Record** of why. It runs entirely on your machine: no account, no API key, no
-network, no model. Median evaluation time is well under a millisecond.
+Your agent is about to pay an invoice, buy servers, delete a table or email a customer. Abe checks the action
+against your rules in under a millisecond, on your machine, and answers **`ACT`**, **`BLOCK`** or **`ESCALATE`**,
+with a tamper-evident record of why.
+
+<a href="https://www.youtube.com/watch?v=ctE8Kz9a6W0"><img src="https://img.youtube.com/vi/ctE8Kz9a6W0/hqdefault.jpg" width="480" alt="Watch the demo: an AI agent tries to spend $12,500 twice"></a>
+
+▶ **[Watch the 40-second demo](https://www.youtube.com/watch?v=ctE8Kz9a6W0)**: an AI agent tries to spend $12,500 twice. Rules
+decide the easy calls; Flow catches the duplicate and approves the real renewal. ([Run it yourself](examples/demo/))
+
+## Free. Really.
+
+Apache-2.0. **No account, no API key, no network, no model, no usage limits.** Every check runs on your machine,
+at no cost, forever.
+
+## Why teams put Abe in front of their agents
+
+- **Stops expensive mistakes**: duplicate payments, over-budget purchases, force-pushes to `main`, `DROP TABLE` in production.
+- **Same answer every time**: plain YAML rules you can read, test, and replay against past decisions before going live.
+- **Proof for auditors**: every decision gets a hash-verified record (optionally Ed25519-signed) showing which rule fired and why.
+- **Works with any agent**: Python, TypeScript, a local HTTP sidecar, Docker, or MCP (Claude, Cursor and other MCP clients).
+- **No-risk rollout**: shadow mode runs beside your current approval process and shows where Abe would agree.
+- **Fails closed**: bad input or a broken rule returns `ESCALATE`, never `ACT`.
+
+## Pay only for the close calls (optional)
+
+When rules can't decide, Abe returns `ESCALATE`. By default that goes to a person. Add `--resolver flow` and only
+that action is sent to [Flow](https://fjp.flowinfo.co/abe#escalate) (redacted), which returns a decision, a reason, and what
+would prove it wrong, for about $0.03 to $0.05 each. `ACT` and `BLOCK` never leave your machine. [Details below](#when-rules-arent-enough-flow).
+
+## Quick start
 
 ```bash
 pip install abe-ai            # or: npm install abe-ai
@@ -175,7 +202,7 @@ python/                  abe-ai (PyPI): core, CLI, HTTP, MCP, stores, signing, c
 typescript/              abe-ai (npm): same API, same records, same hashes
 flow-resolver/           abe-flow (PyPI): Gate → Flow for ESCALATE only
 conformance/fixtures/    golden decisions + canonical-JSON vectors shared by every SDK
-examples/                purchasing, software agent, physical agent, travel (+ Judd), Flow
+examples/                the $12,500 demo, purchasing, software agent, physical agent, travel (+ Judd), Flow
 ```
 
 Apache-2.0. FJP™, Abe™ (Abe) and FJP-CONF™ are trademarks of Flow Information Systems — see [`TRADEMARKS.md`](TRADEMARKS.md).
