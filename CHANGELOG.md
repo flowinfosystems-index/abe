@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.1 — 2026-10-13 (abe-ai, PyPI)
+
+- **`--resolver flow` on `abe check`, `abe serve` and `abe mcp`** (or `ABE_RESOLVER=flow`). Sends only ESCALATE
+  results to Flow Resolver, using `FLOW_API_KEY`. Previously the Flow resolver was reachable only from Python code.
+  Off by default: without the flag nothing leaves the machine. Install with `pip install "abe-ai[flow]"`.
+- MCP `fjp_check_action` now includes Flow's reason and falsifier in `what_to_do`, and a `resolver_help` field
+  with the refill link (402) or key-reset link (401) when Flow could not answer. The action stays ESCALATE.
+- `abe check` prints the resolver's status, reason and falsifier.
+- npm package unchanged (stays 0.2.0).
+
 ## 0.2.0 — 2026-09-30 (abe-ai, PyPI and npm) · abe-flow 0.1.2
 
 - **Shadow mode.** `Gate(policy, mode="shadow")` / `new Gate({ policy, mode: "shadow" })`, `--shadow` or

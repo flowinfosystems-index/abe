@@ -14,6 +14,8 @@
 --policy defaults to $ABE_POLICY, then ./abe-policy.yaml
 --shadow (or ABE_MODE=shadow) on check, serve and mcp: records are marked shadow (not enforced).
   Decisions and exit codes are unchanged, so shadow mode never lets anything run that enforce mode would stop.
+--resolver flow (or ABE_RESOLVER=flow) on check, serve and mcp: send only ESCALATE results to Flow
+  (pip install "abe-ai[flow]", FLOW_API_KEY=fjp_live_...). Off by default: without it nothing leaves the machine.
 """
 from __future__ import annotations
 
@@ -52,6 +54,31 @@ def _mode(args) -> str:
     return env
 
 
+RESOLVERS = ("none", "flow")
+
+
+def _resolver(args):
+    """None unless --resolver flow / ABE_RESOLVER=flow. Never on by default: Abe stays local unless asked."""
+    if not hasattr(args, "resolver"):      # commands without --resolver (outcome, ...) never call one
+        return None
+    name = (args.resolver or os.environ.get("ABE_RESOLVER") or "none").strip().lower()
+    if name not in RESOLVERS:
+        print(f"resolver must be one of {', '.join(RESOLVERS)}, got {name!r}", file=sys.stderr)
+        raise SystemExit(2)
+    if name == "none":
+        return None
+    try:
+        from abe_flow import FlowResolver
+    except ImportError:
+        print('--resolver flow needs the abe-flow package: pip install "abe-ai[flow]"', file=sys.stderr)
+        raise SystemExit(2) from None
+    try:
+        return FlowResolver()
+    except ValueError as e:   # no FLOW_API_KEY, or a non-https FLOW_RESOLVER_URL
+        print(f"--resolver flow: {e}. Get a key at https://fjp.flowinfo.co/credits", file=sys.stderr)
+        raise SystemExit(2) from e
+
+
 def _gate(args, default_store: str | None = None):
     from .exceptions import PolicyError
     from .gate import Gate
@@ -63,7 +90,7 @@ def _gate(args, default_store: str | None = None):
         signer = Signer.from_file(key, key_id=getattr(args, "key_id", None) or "local:key:1")
     try:
         return Gate(_policy_arg(args), store=store_from_uri(getattr(args, "store", None) or default_store),
-                    signer=signer, mode=_mode(args))
+                    signer=signer, mode=_mode(args), resolver=_resolver(args))
     except PolicyError as e:
         print(f"policy error: {e}", file=sys.stderr)
         raise SystemExit(2) from e
@@ -103,6 +130,15 @@ def cmd_check(args):
         if r.missing_evidence:
             print(f"Missing evidence: {', '.join(r.missing_evidence)}")
         print(f"Risk: {r.risk_level}")
+        if r.resolution:
+            res = r.resolution
+            print(f"Resolver: {res['resolver'].get('type', '?')} {res['status']} (Gate said {r.gate_decision})")
+            if res.get("reason"):
+                print(f"Resolver reason: {res['reason']}")
+            for f in res.get("falsifiers") or ():
+                print(f"Falsifier: {f}")
+            if res.get("error"):
+                print(f"Resolver error: {res['error']}", file=sys.stderr)
         print(f"Record: {r.record_id}")
         if not r.enforced:
             print("Mode: shadow (recorded, not enforced)")
@@ -263,11 +299,14 @@ def main(argv=None) -> int:
     p.add_argument("--version", action="version", version=f"abe-ai {__version__}")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    def with_policy(sp, store=True, sign=False, shadow=False):
+    def with_policy(sp, store=True, sign=False, shadow=False, resolver=False):
         sp.add_argument("--policy", help="policy file (default $ABE_POLICY or ./abe-policy.yaml)")
         if shadow:
             sp.add_argument("--shadow", action="store_true",
                             help="mark records shadow: recorded for comparison, not enforced (or ABE_MODE=shadow)")
+        if resolver:
+            sp.add_argument("--resolver", choices=RESOLVERS,
+                            help="send ESCALATE results to a resolver: flow (needs FLOW_API_KEY; or ABE_RESOLVER)")
         if store:
             sp.add_argument("--store", help="record store: memory: | file:records.jsonl | sqlite:abe.db")
         if sign:
@@ -281,7 +320,8 @@ def main(argv=None) -> int:
     s.add_argument("--force", action="store_true")
     s.set_defaults(fn=cmd_init)
 
-    s = with_policy(sub.add_parser("check", help="evaluate a request (file or - for stdin)"), sign=True, shadow=True)
+    s = with_policy(sub.add_parser("check", help="evaluate a request (file or - for stdin)"), sign=True, shadow=True,
+                    resolver=True)
     s.add_argument("request")
     s.add_argument("--json", action="store_true", help="print the FJP response as JSON")
     s.add_argument("--record", action="store_true", help="also print the full record")
@@ -311,14 +351,16 @@ def main(argv=None) -> int:
     s.add_argument("--bench", action="store_true", help="also measure evaluation latency")
     s.set_defaults(fn=cmd_conformance)
 
-    s = with_policy(sub.add_parser("serve", help="local HTTP server (127.0.0.1 by default)"), sign=True, shadow=True)
+    s = with_policy(sub.add_parser("serve", help="local HTTP server (127.0.0.1 by default)"), sign=True, shadow=True,
+                    resolver=True)
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--port", type=int, default=8787)
     s.add_argument("--token", help="require Authorization: Bearer <token> (or $ABE_TOKEN)")
     s.add_argument("--allow-remote", action="store_true", help="permit binding a non-loopback interface")
     s.set_defaults(fn=cmd_serve)
 
-    s = with_policy(sub.add_parser("mcp", help="MCP server over stdio"), sign=True, shadow=True)
+    s = with_policy(sub.add_parser("mcp", help="MCP server over stdio"), sign=True, shadow=True,
+                    resolver=True)
     s.set_defaults(fn=cmd_mcp)
 
     s = sub.add_parser("keygen", help="generate an Ed25519 signing key pair")

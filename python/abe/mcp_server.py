@@ -5,12 +5,49 @@ Requires:  pip install "abe-ai[mcp]"
 Add to an MCP client (Claude Desktop, Claude Code, Cursor, ...):
     {"mcpServers": {"abe": {"command": "abe", "args": ["mcp", "--policy", "/abs/path/abe-policy.yaml",
                                                              "--store", "sqlite:/abs/path/abe-records.db"]}}}
+
+Send escalations to Flow (pip install "abe-ai[mcp,flow]"): add "--resolver", "flow" to args and
+"env": {"FLOW_API_KEY": "fjp_live_..."}. Only ESCALATE results leave the machine.
 """
 from __future__ import annotations
 
 from typing import Any, Literal
 
 from .gate import Gate
+
+REFILL_URL = "https://fjp.flowinfo.co/credits"
+KEY_RESET_URL = "https://fjp.flowinfo.co/credits#lost-key"
+
+WHAT_TO_DO = {"ACT": "Execute the action exactly as evaluated.",
+              "BLOCK": "Do not execute. Tell the user why.",
+              "ESCALATE": "Do not execute now. Show the user the reason and let them decide."}
+
+
+def _resolver_help(resolution: dict | None) -> dict | None:
+    """When the resolver could not answer, say why in words the user can act on."""
+    if not resolution or resolution.get("status") != "unavailable":
+        return None
+    err = str(resolution.get("error") or "")
+    if "(402)" in err:
+        return {"problem": "Flow account is out of credits; this action stayed ESCALATE.", "fix_url": REFILL_URL}
+    if "(401)" in err:
+        return {"problem": "Flow rejected the API key; this action stayed ESCALATE.", "fix_url": KEY_RESET_URL}
+    if "(429)" in err:
+        return {"problem": "Flow rate limit reached; this action stayed ESCALATE. Try again shortly."}
+    return {"problem": "Flow could not be reached; this action stayed ESCALATE."}
+
+
+def _what_to_do(out: dict) -> str:
+    text = WHAT_TO_DO[out["decision"]]
+    res = out.get("resolution") or {}
+    if res.get("status") == "resolved" and res.get("reason"):
+        text += f" Flow's judgment: {res['reason']}"
+        if res.get("falsifiers"):
+            text += f" It would be wrong if: {res['falsifiers'][0]}"
+    help_ = out.get("resolver_help")
+    if help_:
+        text += f" ({help_['problem']}" + (f" Fix: {help_['fix_url']})" if help_.get("fix_url") else ")")
+    return text
 
 INSTRUCTIONS = """Abe is the pre-action control point for this agent.
 Before executing any consequential action (spending money, sending external messages, changing production
@@ -49,9 +86,10 @@ def build_server(gate: Gate):
             req["irreversibility"] = {"level": irreversibility}
         r = gate.check(req)
         out = r.to_dict()
-        out["what_to_do"] = {"ACT": "Execute the action exactly as evaluated.",
-                             "BLOCK": "Do not execute. Tell the user why.",
-                             "ESCALATE": "Do not execute now. Show the user the reason and let them decide."}[r.decision]
+        help_ = _resolver_help(out.get("resolution"))
+        if help_:
+            out["resolver_help"] = help_
+        out["what_to_do"] = _what_to_do(out)
         return out
 
     @mcp.tool()

@@ -121,6 +121,7 @@ When the agreement rate is where you want it, drop `mode="shadow"` and Abe enfor
 | Local HTTP sidecar | `abe serve --policy abe-policy.yaml` → `POST http://127.0.0.1:8787/v1/check` (any language) |
 | Docker sidecar | `docker run -e ABE_TOKEN=… -v $PWD:/policy:ro -p 127.0.0.1:8787:8787 ghcr.io/flowinfosystems-index/abe` |
 | MCP server | `pip install "abe-ai[mcp]"` → `abe mcp --policy /abs/abe-policy.yaml` (tool: `fjp_check_action`) |
+| + Flow on escalations | add `--resolver flow` (or `ABE_RESOLVER=flow`) with `FLOW_API_KEY` to `check`, `serve`, `mcp` or the Docker image |
 
 ## Records you can audit
 
@@ -144,6 +145,17 @@ from abe_flow import FlowResolver                     # pip install abe-flow
 
 abe = Abe("abe-policy.yaml", resolver=FlowResolver(api_key=os.environ["FLOW_API_KEY"]))
 ```
+
+No Python? The CLI, sidecar and MCP server take the same resolver (`pip install "abe-ai[mcp,flow]"`):
+
+```json
+{"mcpServers": {"abe": {"command": "abe",
+  "args": ["mcp", "--policy", "/abs/abe-policy.yaml", "--resolver", "flow"],
+  "env": {"FLOW_API_KEY": "fjp_live_..."}}}}
+```
+
+`abe serve --resolver flow` and `docker run -e ABE_RESOLVER=flow -e FLOW_API_KEY=… …` work the same way. If Flow
+is out of credits, the MCP result says so and links to the refill page; the action stays `ESCALATE`.
 
 `ACT` and `BLOCK` never leave your machine. Only escalations are sent (redacted), and if Flow is unreachable the
 answer simply stays `ESCALATE`. Human-approval escalations are never auto-resolved.
