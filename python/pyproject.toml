@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "abe-ai"
-version = "0.2.3"
+version = "0.2.4"
 description = "Abe: one control point before an AI agent acts. Deterministic ACT / BLOCK / ESCALATE with an immutable Judgment-Grounded Record. Local, offline, no account."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Flow Information Systems", email = "flowinfosystems@gmail.com" }]
-keywords = ["ai-agents", "guardrails", "policy", "audit", "abe", "fjp", "mcp", "agent-safety"]
+keywords = ["ai-agents", "guardrails", "policy", "audit", "abe", "fjp", "mcp", "agent-safety", "claude-agent-sdk", "hooks"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
@@ -25,8 +25,9 @@ dependencies = ["PyYAML>=6.0"]
 signing = ["cryptography>=42"]
 mcp = ["mcp>=1.27,<2"]
 flow = ["abe-flow>=0.1.3,<0.2"]   # --resolver flow: send ESCALATE results to Flow
+claude = ["claude-agent-sdk>=0.1.50"]   # abe.integrations.claude_agent_sdk.abe_hooks (escalate="defer" needs 0.1.81+)
 all = ["cryptography>=42", "mcp>=1.27,<2"]
-dev = ["pytest>=8", "cryptography>=42", "jsonschema>=4", "fjp-conformance>=0.1.2,<0.2; python_version >= '3.11'"]  # reference suite for the drift test (needs 3.11+)
+dev = ["pytest>=8", "cryptography>=42", "jsonschema>=4", "claude-agent-sdk>=0.1.50", "fjp-conformance>=0.1.2,<0.2; python_version >= '3.11'"]  # reference suite for the drift test (needs 3.11+)
 
 [project.scripts]
 abe = "abe.cli:main"
@@ -38,7 +39,7 @@ Source = "https://github.com/flowinfosystems-index/abe"
 Specification = "https://fjp.flowinfo.co/abe/spec"
 
 [tool.setuptools]
-packages = ["abe", "abe.stores", "abe.conformance"]
+packages = ["abe", "abe.stores", "abe.conformance", "abe.integrations"]
 license-files = ["LICENSE", "NOTICE"]
 
 [tool.setuptools.package-data]

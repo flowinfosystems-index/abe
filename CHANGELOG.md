@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.4 — 2026-10-29 (abe-ai, PyPI)
+
+- **Claude Agent SDK integration** (`abe.integrations.claude_agent_sdk`, `pip install "abe-ai[claude]"`).
+  `ClaudeAgentOptions(hooks=abe_hooks(abe))` gates every tool call with one `PreToolUse` hook: BLOCK becomes
+  `deny` with Abe's reason and record id, ESCALATE becomes `deny` / `ask` / `defer` (your choice), ACT leaves the
+  SDK's own permissions in charge. Tool inputs become action fields; `action_types` maps a tool onto an existing
+  action type. Allowed calls get linked `executed` / `failed` outcome records. Shadow mode and resolvers (Flow)
+  work unchanged. Harness tools with no outside effect (`ToolSearch`, `TodoWrite`, `AskUserQuestion`) are not
+  gated by default (`ungated=()` to gate them).
+- The core package still imports nothing from the SDK: `import abe` stays offline with one dependency.
+- `examples/claude_agent_sdk/`: offline replay, or `--live` against a real Claude agent.
+
 ## 0.2.3 — 2026-10-13 (abe-ai, PyPI)
 
 - Listed in the official MCP Registry as `io.github.flowinfosystems-index/abe` (`server.json`, ownership line in the

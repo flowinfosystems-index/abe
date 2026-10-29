@@ -74,6 +74,33 @@ else:  # ESCALATE
 result.record.to_dict()                   # the Judgment-Grounded Record (store it, ship it to your SIEM)
 ```
 
+## Claude Agent SDK
+
+One hook gates every tool call your Claude agent makes. No changes to your tools.
+
+```python
+from claude_agent_sdk import ClaudeAgentOptions, query
+from abe import Abe
+from abe.integrations.claude_agent_sdk import abe_hooks
+
+abe = Abe("abe-policy.yaml")
+options = ClaudeAgentOptions(hooks=abe_hooks(abe, agent_id="ops-agent"))
+```
+
+`pip install "abe-ai[claude]"`. Each call becomes an FJP request: `action.type` is the tool name (`Bash`, `Write`,
+`mcp__stripe__create_payment`) and the tool's input fields are action fields, so a rule can test `action.command`
+or `action.amount`. `action_types={"mcp__shop__buy": "purchase"}` reuses rules you already wrote.
+
+| Abe says | Claude Agent SDK gets |
+|---|---|
+| ACT | no override (your normal permissions apply), or `allow` with `act="allow"` |
+| BLOCK | `deny`, with Abe's reason and record id shown to Claude |
+| ESCALATE | `deny` (default), `ask` (your permission prompt), or `defer` (stop the run and hand the call to a person; SDK 0.1.81+) |
+
+A resolver on the Gate (e.g. Flow) decides escalations first. Tools Abe allowed get a linked `executed` or `failed`
+outcome record. `Abe(policy, mode="shadow")` records everything and changes nothing. Runnable example:
+[`examples/claude_agent_sdk`](https://github.com/flowinfosystems-index/abe/tree/main/examples/claude_agent_sdk).
+
 ## TypeScript
 
 ```typescript
@@ -120,6 +147,7 @@ Full reference: [SPEC.md](https://github.com/flowinfosystems-index/abe/blob/main
 | CLI | `abe check · replay · validate-policy · validate-record · conformance · keygen` |
 | Local HTTP sidecar | `abe serve --policy abe-policy.yaml` → `POST http://127.0.0.1:8787/v1/check` (any language) |
 | Docker sidecar | `docker run -e ABE_TOKEN=… -v $PWD:/policy:ro -p 127.0.0.1:8787:8787 ghcr.io/flowinfosystems-index/abe` |
+| Claude Agent SDK hook | `pip install "abe-ai[claude]"` → `ClaudeAgentOptions(hooks=abe_hooks(abe))` |
 | MCP server | `pip install "abe-ai[mcp]"` → `abe mcp --policy /abs/abe-policy.yaml` (tool: `fjp_check_action`) |
 | + Flow on escalations | `pip install "abe-ai[flow]"`, then add `--resolver flow` (or `ABE_RESOLVER=flow`) with `FLOW_API_KEY` to `check`, `serve` or `mcp` |
 
@@ -184,5 +212,6 @@ Apache-2.0. FJP™, Abe™ (Abe) and FJP-CONF™ are trademarks of Flow Informat
 | `pip install abe-ai` | core, CLI, HTTP server, stores (memory, file, SQLite), conformance — one dependency (PyYAML) |
 | `pip install "abe-ai[signing]"` | Ed25519 record signing (`abe keygen`, `--sign-key`) |
 | `pip install "abe-ai[mcp]"` | MCP server (`abe mcp`) |
+| `pip install "abe-ai[claude]"` | `abe.integrations.claude_agent_sdk`: gate every Claude Agent SDK tool call with one hook |
 | `pip install "abe-ai[flow]"` | `--resolver flow`: send escalations to Flow (installs `abe-flow`) |
 | `abe.stores.contrib` | `PostgresStore` (psycopg 3), `MongoStore` (pymongo) — bring your own driver |

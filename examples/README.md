@@ -7,6 +7,7 @@
 | `software_agent/` | Coding/DevOps agent: protected branches, force-push, destructive SQL | `python run.py` |
 | `physical_agent/` | Spec §27: critical physical action near humans → `HIGH_CONSEQUENCE_ACTION` | `python run.py` |
 | `travel/` | Spec §28/§46: Gate stops at "judgment required"; `JuddResolver` hands it to Judd | `python run.py` |
+| `claude_agent_sdk/` | One `PreToolUse` hook gates a Claude agent: `rm -rf` blocked, a $12,500 purchase held for a person, outcomes recorded | `python run.py` · `python run.py --live` |
 | `flow/` | Gate + Flow: only escalations go to `resolve.flowinfo.co` (Python package + copyable JS resolver) | `FLOW_API_KEY=… python with_flow.py` |
 
-None of these need an account or network access except `demo/` (rules only without a key), `flow/` and the optional Judd step in `travel/`.
+None of these need an account or network access except `demo/` (rules only without a key), `claude_agent_sdk/ --live`, `flow/` and the optional Judd step in `travel/`.

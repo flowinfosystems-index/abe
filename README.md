@@ -72,6 +72,20 @@ else:  # ESCALATE
 result.record.to_dict()                   # the Judgment-Grounded Record (store it, ship it to your SIEM)
 ```
 
+## Claude Agent SDK
+
+```python
+from claude_agent_sdk import ClaudeAgentOptions
+from abe import Abe
+from abe.integrations.claude_agent_sdk import abe_hooks
+
+options = ClaudeAgentOptions(hooks=abe_hooks(Abe("abe-policy.yaml"), agent_id="ops-agent"))
+```
+
+Every tool call is checked before it runs. BLOCK → `deny` with Abe's reason; ESCALATE → `deny`, `ask` or `defer`
+(hand it to a person); ACT → your normal permissions. Tool inputs are action fields (`action.command`,
+`action.amount`). See [`examples/claude_agent_sdk`](examples/claude_agent_sdk).
+
 ## TypeScript
 
 ```typescript
@@ -147,6 +161,7 @@ When the agreement rate is where you want it, drop `mode="shadow"` and Abe enfor
 | CLI | `abe check · replay · validate-policy · validate-record · conformance · keygen` |
 | Local HTTP sidecar | `abe serve --policy abe-policy.yaml` → `POST http://127.0.0.1:8787/v1/check` (any language) |
 | Docker sidecar | `docker run -e ABE_TOKEN=… -v $PWD:/policy:ro -p 127.0.0.1:8787:8787 ghcr.io/flowinfosystems-index/abe` |
+| Claude Agent SDK hook | `pip install "abe-ai[claude]"` → `ClaudeAgentOptions(hooks=abe_hooks(abe))` ([example](examples/claude_agent_sdk)) |
 | MCP server | `pip install "abe-ai[mcp]"` → `abe mcp --policy /abs/abe-policy.yaml` (tool: `fjp_check_action`) |
 | + Flow on escalations | add `--resolver flow` (or `ABE_RESOLVER=flow`) with `FLOW_API_KEY` to `check`, `serve`, `mcp` or the Docker image |
 
