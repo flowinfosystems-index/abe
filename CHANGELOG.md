@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- **LangChain / LangGraph middleware** (`abe.integrations.langchain.AbeMiddleware`, `pip install "abe-ai[langchain]"`).
+  One line in `create_agent(..., middleware=[...])` gates every tool call. BLOCK and ESCALATE return an error
+  `ToolMessage` with Abe's reason and record id; `escalate="interrupt"` pauses the graph for a person to approve.
+  Allowed calls get linked `executed` / `failed` outcome records. Sync and async. Tested on LangChain 1.0 and 1.5.
+- **OpenAI Agents SDK guardrails** (`abe.integrations.openai_agents.gate_tools`, `pip install "abe-ai[openai-agents]"`).
+  Adds an Abe tool input guardrail (decision) and output guardrail (outcome record) to each function tool.
+  `escalate="raise"` stops the run instead of rejecting. Tested on openai-agents 0.3.3 and 0.26.
+- **`@guard` decorator** (`abe.integrations.guard`) for any Python function, sync or async. Arguments become action
+  fields; BLOCK / ESCALATE raise `AbeBlocked` / `AbeEscalated` or, with `on_deny="return"`, return Abe's reason.
+  Keeps name, docstring and signature, so LangChain's `@tool` works on top of it.
+- `import abe` still imports no agent framework.
+
 ## 0.2.4 — 2026-10-29 (abe-ai, PyPI)
 
 - **Claude Agent SDK integration** (`abe.integrations.claude_agent_sdk`, `pip install "abe-ai[claude]"`).
