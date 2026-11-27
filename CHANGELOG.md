@@ -14,6 +14,9 @@
 - **Replay report** now lists what would have been stopped (BLOCK and ESCALATE, with action type, amount, reason
   and rules), the dollar total held back (sum of `action.amount`), reason counts, and how many calls escalated only
   because no rule matched. JSON adds `stopped`, `exposure` and `reasons`. Existing replay input and output keep working.
+- TypeScript: `abe replay` and `loadCases()` read the same agent logs and print the same report (checked by the
+  cross-language parity script). `--action-type` takes `TOOL=TYPE` pairs, comma separated, in both SDKs.
+  `abe init --pack` is Python only for now; the pack files load in the TypeScript SDK unchanged.
 
 ## 0.2.5 — 2026-11-26 (abe-ai, PyPI)
 

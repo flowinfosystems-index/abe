@@ -114,7 +114,54 @@ py_rep = replay([json.loads(line) for line in open(cases_path)], os.path.join(FI
 if py_rep != ts2["replay"]:
     problems.append("replay report differs between Python and TypeScript")
 
-print(f"cross-language parity: {len(cases)} fixtures (+ shadow, replay), {len(problems)} problem(s)")
+# Replaying raw agent logs with a policy pack: same cases, same report.
+from abe.packs import build as build_pack  # noqa: E402
+from abe.replay import load_cases  # noqa: E402
+
+pack_path = os.path.join(tmp, "pack.yaml")
+with open(pack_path, "w") as fh:
+    fh.write(build_pack(["refunds", "payments", "customer-email"]))
+log_path = os.path.join(tmp, "agent.jsonl")
+log = [
+    {"role": "user", "content": "refund A-1 and A-2"},
+    {"role": "assistant", "content": None, "tool_calls": [
+        {"id": "call_1", "type": "function", "function": {"name": "issue_refund", "arguments": "{\"amount\": 40}"}},
+        {"id": "call_2", "type": "function", "function": {"name": "issue_refund", "arguments": "{\"amount\": 1800.5}"}}]},
+    {"role": "tool", "tool_call_id": "call_1", "content": "ok"},
+    {"type": "function_call", "call_id": "call_3", "name": "wire_transfer", "arguments": "{\"amount\": 48000, \"new_payee\": true}"},
+    {"role": "assistant", "content": [{"type": "tool_use", "id": "toolu_4", "name": "send_email",
+                                       "input": {"recipient_count": 1, "body": "We guarantee it.", "type": "html"}}]},
+    {"tool_name": "mcp__stripe__create_refund", "tool_input": {"amount": 9000}, "tool_use_id": "toolu_5"},
+    {"tool_calls": [{"name": "send_payment", "args": {"amount": 200}, "id": "lc_6"}]},
+    {"tool": "lookup_weather", "args": {"city": "SF"}},
+]
+with open(log_path, "w") as fh:
+    fh.write("\n".join(json.dumps(x) for x in log) + "\n")
+conv_path = os.path.join(tmp, "conversation.json")
+with open(conv_path, "w") as fh:
+    json.dump({"messages": log}, fh)
+types = {"mcp__stripe__create_refund": "refund"}
+node3 = f"""
+import {{ replay, loadCases }} from '{ROOT}/typescript/dist/index.js';
+const types = {json.dumps(types)};
+const a = await replay(loadCases('{log_path}', types), '{pack_path}');
+const b = await replay(loadCases('{conv_path}', types), '{pack_path}');
+console.log(JSON.stringify({{ a, b, cases: loadCases('{log_path}', types) }}));
+"""
+res3 = subprocess.run(["node", "--input-type=module", "-e", node3], capture_output=True, text=True)
+if res3.returncode:
+    print(res3.stderr)
+    sys.exit(1)
+ts3 = json.loads(res3.stdout.strip().splitlines()[-1])
+py_cases = load_cases(log_path, types)
+if py_cases != ts3["cases"]:
+    problems.append("agent-log cases differ between Python and TypeScript")
+if replay(py_cases, pack_path) != ts3["a"]:
+    problems.append("agent-log replay report differs between Python and TypeScript")
+if replay(load_cases(conv_path, types), pack_path) != ts3["b"]:
+    problems.append("conversation replay report differs between Python and TypeScript")
+
+print(f"cross-language parity: {len(cases)} fixtures (+ shadow, replay, agent logs), {len(problems)} problem(s)")
 for x in problems:
     print("  -", x)
 sys.exit(1 if problems else 0)

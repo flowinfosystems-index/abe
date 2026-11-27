@@ -175,7 +175,7 @@ def cmd_replay(args):
     from .replay import ReplayInputError, format_report, load_cases, replay
     try:
         types = {}
-        for pair in args.action_type or ():
+        for pair in (x for arg in (args.action_type or ()) for x in arg.split(",")):
             tool, sep, typ = pair.partition("=")
             if not sep or not tool or not typ:
                 raise ReplayInputError(f"--action-type expects TOOL=TYPE, got {pair!r}")
