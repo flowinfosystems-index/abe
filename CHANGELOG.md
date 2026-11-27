@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0 — 2026-11-26 (abe-ai, PyPI)
+## 0.2.5 — 2026-11-26 (abe-ai, PyPI)
 
 - **LangChain / LangGraph middleware** (`abe.integrations.langchain.AbeMiddleware`, `pip install "abe-ai[langchain]"`).
   One line in `create_agent(..., middleware=[...])` gates every tool call. BLOCK and ESCALATE return an error

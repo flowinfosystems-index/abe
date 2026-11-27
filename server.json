@@ -3,7 +3,7 @@
   "name": "io.github.flowinfosystems-index/abe",
   "title": "Abe",
   "description": "Free, local check before an AI agent acts: your rules return ACT, BLOCK or ESCALATE.",
-  "version": "0.3.0",
+  "version": "0.2.5",
   "websiteUrl": "https://fjp.flowinfo.co/abe",
   "repository": {
     "url": "https://github.com/flowinfosystems-index/abe",
@@ -13,7 +13,7 @@
     {
       "registryType": "pypi",
       "identifier": "abe-ai",
-      "version": "0.3.0",
+      "version": "0.2.5",
       "runtimeHint": "uvx",
       "runtimeArguments": [
         { "type": "named", "name": "--from", "value": "abe-ai[mcp,flow]==0.2.3" }
