@@ -1,0 +1,58 @@
+# Abe pack: purchasing. Purchase orders and checkouts with a spend ladder.
+# Docs: https://fjp.flowinfo.co/abe    Edit the amounts to match your business, then: abe validate-policy <file>
+# Matches purchase, buy, checkout, place_order, create_purchase_order.
+version: "0.1"
+policy_id: pack-purchasing
+policy_version: "2026-11-26"
+
+defaults:
+  unmatched: ESCALATE
+
+rules:
+  - id: purchase_hard_limit
+    description: Never buy more than $100,000 in one order
+    when:
+      all:
+        - { field: action.type, op: in, value: [purchase, buy, checkout, place_order, create_purchase_order] }
+        - { field: action.amount, op: gt, value: 100000 }
+    decision: BLOCK
+    reason_code: HARD_POLICY_VIOLATION
+
+  - id: purchase_review
+    description: Orders above $5,000 need judgment
+    when:
+      all:
+        - { field: action.type, op: in, value: [purchase, buy, checkout, place_order, create_purchase_order] }
+        - { field: action.amount, op: gt, value: 5000 }
+    decision: ESCALATE
+    reason_code: FINANCIAL_THRESHOLD_EXCEEDED
+
+  - id: new_vendor
+    description: First order from a new vendor needs a person
+    when:
+      all:
+        - { field: action.type, op: in, value: [purchase, buy, checkout, place_order, create_purchase_order] }
+        - { field: action.new_vendor, op: eq, value: true }
+    decision: ESCALATE
+    reason_code: HUMAN_APPROVAL_REQUIRED
+
+  - id: purchase_no_amount
+    when:
+      all:
+        - { field: action.type, op: in, value: [purchase, buy, checkout, place_order, create_purchase_order] }
+        - { field: action.amount, op: not_exists }
+    decision: ESCALATE
+    reason_code: EVIDENCE_MISSING
+
+  - id: purchase_routine
+    description: Orders of $5,000 or less go through
+    when:
+      all:
+        - { field: action.type, op: in, value: [purchase, buy, checkout, place_order, create_purchase_order] }
+        - { field: action.amount, op: lte, value: 5000 }
+        - not: { field: action.new_vendor, op: eq, value: true }
+    decision: ACT
+
+  - id: purchasing_read_only
+    when: { field: action.type, op: in, value: [search_products, get_quote, compare_prices, get_vendor, list_orders] }
+    decision: ACT

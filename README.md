@@ -50,6 +50,18 @@ Risk: MEDIUM
 Record: jgr_01M3Q4...
 ```
 
+**Start from a policy pack** instead of a blank file. Seven packs cover the actions agents most often get wrong:
+`refunds`, `payments`, `purchasing`, `subscriptions`, `customer-email`, `deploys`, `data-changes`.
+
+```bash
+abe init --list-packs
+abe init --pack refunds                                   # one pack, with a sample request that shows it working
+abe init --pack payments --pack customer-email --force    # combine packs into one policy
+```
+
+Each pack is an ordinary policy: open it, change the amounts to match your business, run `abe validate-policy`.
+Anything a pack doesn't recognize still ESCALATEs.
+
 ## Python
 
 ```python
@@ -176,6 +188,23 @@ abe replay cases.jsonl --policy new-policy.yaml --baseline abe-policy.yaml
 #   Agreement with expected: 1198/1204 (99.5%)
 abe replay cases.jsonl --policy new-policy.yaml --baseline abe-policy.yaml --fail-on-change   # CI: exit 1 if anything moved
 ```
+
+**Replay your agent's own logs** to see what Abe would have stopped, before you install anything in the agent.
+`abe replay` reads tool calls straight from OpenAI (Chat Completions and Responses), Anthropic, LangChain and Claude
+Code hook logs, plus plain `{"tool": ..., "args": ...}` lines. Each call's arguments become action fields.
+
+```bash
+abe init --pack refunds --pack payments
+abe replay last-month.jsonl --policy abe-policy.yaml --action-type mcp__stripe__create_refund=refund
+#   Replayed 1,204 case(s) against pack-refunds-payments ...   ACT 1,131   BLOCK 6   ESCALATE 67
+#     Amounts held back: $61,400 blocked, $388,250 escalated (sum of action.amount)
+#   Would have stopped: 73
+#     call_8f2: ESCALATE wire_transfer $48,000  FINANCIAL_THRESHOLD_EXCEEDED  [payment_review, new_or_changed_payee]
+#     toolu_19: BLOCK refund $9,000  HARD_POLICY_VIOLATION  [refund_hard_limit]
+```
+
+Nothing is stored or sent anywhere. `--action-type TOOL=TYPE` maps your tool names onto the pack's action types;
+calls no rule matches are listed so you know which tools still need a rule.
 
 **Shadow mode** runs Abe beside your current approval process. Decisions, results and exit codes are exactly what
 enforce mode would return, and every record is marked `"mode": "shadow"`. Keep approving the way you do today,

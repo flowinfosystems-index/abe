@@ -97,13 +97,31 @@ def _gate(args, default_store: str | None = None):
 
 
 def cmd_init(args):
+    from . import packs
+    from .exceptions import PolicyError
+    if args.list_packs:
+        rows = packs.list_packs()
+        width = max(len(n) for n, _ in rows)
+        for name, summary in rows:
+            print(f"  {name.ljust(width)}  {summary}")
+        print("\nuse:   abe init --pack refunds    (repeat --pack to combine)")
+        return 0
     tpl = resources.files("abe").joinpath("templates")
-    for name, dest in (("starter.yaml", args.policy_out), ("request.json", args.request_out)):
+    if args.pack:
+        try:
+            files = ((packs.build(args.pack), args.policy_out), (packs.sample_request(args.pack), args.request_out))
+        except (packs.PackError, PolicyError) as e:
+            print(f"pack error: {e}", file=sys.stderr)
+            return 2
+    else:
+        files = ((tpl.joinpath("starter.yaml").read_text(encoding="utf-8"), args.policy_out),
+                 (tpl.joinpath("request.json").read_text(encoding="utf-8"), args.request_out))
+    for text, dest in files:
         if os.path.exists(dest) and not args.force:
             print(f"exists, skipped: {dest} (use --force to overwrite)")
             continue
         with open(dest, "w", encoding="utf-8") as fh:
-            fh.write(tpl.joinpath(name).read_text(encoding="utf-8"))
+            fh.write(text)
         print(f"wrote {dest}")
     print(f"\nnext:  abe check {args.request_out} --policy {args.policy_out}")
     return 0
@@ -156,7 +174,13 @@ def cmd_replay(args):
     from .exceptions import PolicyError
     from .replay import ReplayInputError, format_report, load_cases, replay
     try:
-        cases = load_cases(args.cases)
+        types = {}
+        for pair in (x for arg in (args.action_type or ()) for x in arg.split(",")):
+            tool, sep, typ = pair.partition("=")
+            if not sep or not tool or not typ:
+                raise ReplayInputError(f"--action-type expects TOOL=TYPE, got {pair!r}")
+            types[tool] = typ
+        cases = load_cases(args.cases, action_types=types or None)
         rep = replay(cases, _policy_arg(args), args.baseline)
     except PolicyError as e:
         print(f"policy error: {e}", file=sys.stderr)
@@ -318,6 +342,9 @@ def main(argv=None) -> int:
     s.add_argument("--policy-out", default="abe-policy.yaml")
     s.add_argument("--request-out", default="request.json")
     s.add_argument("--force", action="store_true")
+    s.add_argument("--pack", action="append", metavar="NAME",
+                   help="start from a ready-made policy pack (repeat to combine); see --list-packs")
+    s.add_argument("--list-packs", action="store_true", help="list the policy packs and exit")
     s.set_defaults(fn=cmd_init)
 
     s = with_policy(sub.add_parser("check", help="evaluate a request (file or - for stdin)"), sign=True, shadow=True,
@@ -328,12 +355,15 @@ def main(argv=None) -> int:
     s.add_argument("--record-out", help="write the record to this file")
     s.set_defaults(fn=cmd_check)
 
-    s = with_policy(sub.add_parser("replay", help="run saved requests through a policy and report changes"), store=False)
+    s = with_policy(sub.add_parser("replay", help="run saved requests or agent tool-call logs through a policy"),
+                    store=False)
     s.add_argument("cases", help=".jsonl, .json, or a directory of them")
     s.add_argument("--baseline", help="current policy to compare against")
     s.add_argument("--fail-on-change", action="store_true", help="exit 1 if any decision differs from --baseline")
     s.add_argument("--json", action="store_true", help="print the report as JSON")
     s.add_argument("--all", action="store_true", help="with --json, include every case's result")
+    s.add_argument("--action-type", action="append", metavar="TOOL=TYPE",
+                   help="for agent logs: treat calls to TOOL as action.type TYPE (repeatable)")
     s.set_defaults(fn=cmd_replay)
 
     s = sub.add_parser("validate-policy", help="validate a policy file")

@@ -125,7 +125,16 @@ async function main(argv: string[]): Promise<number> {
       if (!pos[0]) { console.error("usage: abe replay <cases.jsonl|.json|dir> [--policy p.yaml] [--baseline old.yaml]"); return 2; }
       let rep;
       try {
-        rep = await replay(loadCases(pos[0]), policyPath(flags), (flags.baseline as string) || null);
+        let types: Record<string, string> | null = null;
+        if (flags["action-type"]) {
+          types = {};
+          for (const pair of String(flags["action-type"]).split(",")) {
+            const i = pair.indexOf("=");
+            if (i < 1 || i === pair.length - 1) throw new ReplayInputError(`--action-type expects TOOL=TYPE, got ${JSON.stringify(pair)}`);
+            types[pair.slice(0, i)] = pair.slice(i + 1);
+          }
+        }
+        rep = await replay(loadCases(pos[0], types), policyPath(flags), (flags.baseline as string) || null);
       } catch (e) {
         if (e instanceof PolicyError) { console.error(`policy error: ${e.message}`); return 2; }
         if (e instanceof ReplayInputError || (e as NodeJS.ErrnoException).code) { console.error(`cannot read cases: ${(e as Error).message}`); return 2; }
@@ -199,7 +208,8 @@ async function main(argv: string[]): Promise<number> {
 
   abe init                          write abe-policy.yaml + request.json
   abe check request.json            Decision / Reason / Record  (exit 0 ACT, 10 BLOCK, 20 ESCALATE)
-  abe replay cases.jsonl [--baseline old.yaml] [--fail-on-change]   test a policy on saved requests
+  abe replay cases.jsonl [--baseline old.yaml] [--fail-on-change]   test a policy on saved requests or agent logs
+                [--action-type TOOL=TYPE[,TOOL=TYPE]]
   abe validate-policy abe-policy.yaml
   abe validate-record jgr.json [--public-key pub.pem]
   abe conformance [--level 3] [--bench]

@@ -1,0 +1,50 @@
+# Abe pack: refunds. Small refunds go through; large ones need judgment; very large ones are blocked.
+# Docs: https://fjp.flowinfo.co/abe    Edit the amounts to match your business, then: abe validate-policy <file>
+# Matches tools named refund, issue_refund, create_refund, refund_payment, refund_order (or map yours with action_types).
+version: "0.1"
+policy_id: pack-refunds
+policy_version: "2026-11-26"
+
+defaults:
+  unmatched: ESCALATE          # anything this pack doesn't recognize needs judgment (fail closed)
+
+rules:
+  - id: refund_hard_limit
+    description: Never refund more than $5,000 without finance
+    when:
+      all:
+        - { field: action.type, op: in, value: [refund, issue_refund, create_refund, refund_payment, refund_order] }
+        - { field: action.amount, op: gt, value: 5000 }
+    decision: BLOCK
+    reason_code: HARD_POLICY_VIOLATION
+
+  - id: refund_review
+    description: Refunds above $250 need judgment
+    when:
+      all:
+        - { field: action.type, op: in, value: [refund, issue_refund, create_refund, refund_payment, refund_order] }
+        - { field: action.amount, op: gt, value: 250 }
+    decision: ESCALATE
+    reason_code: FINANCIAL_THRESHOLD_EXCEEDED
+
+  - id: refund_no_amount
+    description: A refund with no amount needs judgment
+    when:
+      all:
+        - { field: action.type, op: in, value: [refund, issue_refund, create_refund, refund_payment, refund_order] }
+        - { field: action.amount, op: not_exists }
+    decision: ESCALATE
+    reason_code: EVIDENCE_MISSING
+
+  - id: refund_routine
+    description: Refunds of $250 or less go through
+    when:
+      all:
+        - { field: action.type, op: in, value: [refund, issue_refund, create_refund, refund_payment, refund_order] }
+        - { field: action.amount, op: lte, value: 250 }
+    decision: ACT
+
+  - id: refunds_read_only
+    description: Looking up orders, customers and payments is always fine
+    when: { field: action.type, op: in, value: [get_order, lookup_order, get_customer, lookup_customer, get_payment, list_orders, search_orders] }
+    decision: ACT

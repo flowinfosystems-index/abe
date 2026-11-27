@@ -1,0 +1,89 @@
+# Abe pack: data-changes. Agents with database or record access: reads go through, deletes need a person, drops are blocked.
+# Docs: https://fjp.flowinfo.co/abe    Edit to match your setup, then: abe validate-policy <file>
+# Matches execute_sql, run_query, delete_records, update_records, bulk_update, drop_table, truncate_table.
+# SQL checks are case sensitive and look for whole keywords with a trailing space.
+version: "0.1"
+policy_id: pack-data-changes
+policy_version: "2026-11-26"
+
+defaults:
+  unmatched: ESCALATE
+
+rules:
+  - id: destructive_ddl
+    description: Dropping or truncating tables is never an agent's call
+    when:
+      any:
+        - { field: action.type, op: in, value: [drop_table, truncate_table, drop_database] }
+        - all:
+            - { field: action.type, op: in, value: [execute_sql, run_query, sql] }
+            - any:
+                - { field: action.query, op: contains, value: "DROP " }
+                - { field: action.query, op: contains, value: "drop " }
+                - { field: action.query, op: contains, value: "TRUNCATE " }
+                - { field: action.query, op: contains, value: "truncate " }
+    decision: BLOCK
+    reason_code: HARD_POLICY_VIOLATION
+
+  - id: sql_writes
+    description: SQL that deletes, updates or alters needs a person
+    when:
+      all:
+        - { field: action.type, op: in, value: [execute_sql, run_query, sql] }
+        - any:
+            - { field: action.query, op: contains, value: "DELETE " }
+            - { field: action.query, op: contains, value: "delete " }
+            - { field: action.query, op: contains, value: "UPDATE " }
+            - { field: action.query, op: contains, value: "update " }
+            - { field: action.query, op: contains, value: "ALTER " }
+            - { field: action.query, op: contains, value: "alter " }
+    decision: ESCALATE
+    reason_code: HIGH_IRREVERSIBILITY
+
+  - id: record_deletes
+    description: Deleting records needs a person
+    when: { field: action.type, op: in, value: [delete_records, delete_record, bulk_delete] }
+    decision: ESCALATE
+    reason_code: HIGH_IRREVERSIBILITY
+
+  - id: large_updates
+    description: Updating more than 100 records at once needs a person
+    when:
+      all:
+        - { field: action.type, op: in, value: [update_records, bulk_update] }
+        - { field: action.count, op: gt, value: 100 }
+    decision: ESCALATE
+    reason_code: HIGH_CONSEQUENCE_ACTION
+
+  - id: small_updates
+    when:
+      all:
+        - { field: action.type, op: in, value: [update_records, update_record] }
+        - { field: action.count, op: lte, value: 100 }
+    decision: ACT
+
+  - id: sql_reads
+    description: Read-only SQL goes through
+    when:
+      all:
+        - { field: action.type, op: in, value: [execute_sql, run_query, sql] }
+        - { field: action.query, op: exists }
+        - not:
+            any:
+              - { field: action.query, op: contains, value: "DROP " }
+              - { field: action.query, op: contains, value: "drop " }
+              - { field: action.query, op: contains, value: "TRUNCATE " }
+              - { field: action.query, op: contains, value: "truncate " }
+              - { field: action.query, op: contains, value: "DELETE " }
+              - { field: action.query, op: contains, value: "delete " }
+              - { field: action.query, op: contains, value: "UPDATE " }
+              - { field: action.query, op: contains, value: "update " }
+              - { field: action.query, op: contains, value: "ALTER " }
+              - { field: action.query, op: contains, value: "alter " }
+              - { field: action.query, op: contains, value: "INSERT " }
+              - { field: action.query, op: contains, value: "insert " }
+    decision: ACT
+
+  - id: data_changes_read_only
+    when: { field: action.type, op: in, value: [get_record, list_records, search_records, describe_table, list_tables] }
+    decision: ACT

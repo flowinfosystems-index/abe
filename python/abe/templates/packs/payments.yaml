@@ -1,0 +1,74 @@
+# Abe pack: payments. Wires, payouts and invoice payments; new payees and large amounts need judgment.
+# Docs: https://fjp.flowinfo.co/abe    Edit the amounts to match your business, then: abe validate-policy <file>
+# Matches wire_transfer, send_payment, create_payout, ach_transfer, pay_invoice, transfer_funds.
+version: "0.1"
+policy_id: pack-payments
+policy_version: "2026-11-26"
+
+defaults:
+  unmatched: ESCALATE
+
+rules:
+  - id: payment_hard_limit
+    description: Never move more than $250,000 without a person
+    when:
+      all:
+        - { field: action.type, op: in, value: [wire_transfer, send_payment, create_payout, ach_transfer, pay_invoice, transfer_funds] }
+        - { field: action.amount, op: gt, value: 250000 }
+    decision: BLOCK
+    reason_code: HARD_POLICY_VIOLATION
+
+  - id: payment_review
+    description: Payments above $10,000 need judgment
+    when:
+      all:
+        - { field: action.type, op: in, value: [wire_transfer, send_payment, create_payout, ach_transfer, pay_invoice, transfer_funds] }
+        - { field: action.amount, op: gt, value: 10000 }
+    decision: ESCALATE
+    reason_code: FINANCIAL_THRESHOLD_EXCEEDED
+
+  - id: new_or_changed_payee
+    description: Paying a new payee or changed bank details needs a person (the classic invoice fraud pattern)
+    when:
+      all:
+        - { field: action.type, op: in, value: [wire_transfer, send_payment, create_payout, ach_transfer, pay_invoice, transfer_funds] }
+        - any:
+            - { field: action.new_payee, op: eq, value: true }
+            - { field: action.bank_details_changed, op: eq, value: true }
+    decision: ESCALATE
+    reason_code: HUMAN_APPROVAL_REQUIRED
+
+  - id: payee_changes
+    description: Adding a payee or changing bank details always needs a person
+    when: { field: action.type, op: in, value: [add_payee, update_payee, update_bank_details, create_recipient] }
+    decision: ESCALATE
+    reason_code: HUMAN_APPROVAL_REQUIRED
+
+  - id: payment_no_amount
+    when:
+      all:
+        - { field: action.type, op: in, value: [wire_transfer, send_payment, create_payout, ach_transfer, pay_invoice, transfer_funds] }
+        - { field: action.amount, op: not_exists }
+    decision: ESCALATE
+    reason_code: EVIDENCE_MISSING
+
+  - id: payment_routine
+    description: Payments of $10,000 or less to known payees go through
+    when:
+      all:
+        - { field: action.type, op: in, value: [wire_transfer, send_payment, create_payout, ach_transfer, pay_invoice, transfer_funds] }
+        - { field: action.amount, op: lte, value: 10000 }
+        - not: { field: action.new_payee, op: eq, value: true }
+        - not: { field: action.bank_details_changed, op: eq, value: true }
+    decision: ACT
+
+  - id: payments_read_only
+    when: { field: action.type, op: in, value: [get_balance, list_transactions, get_invoice, list_invoices, get_payee] }
+    decision: ACT
+
+risk:
+  defaults: { level: MEDIUM }
+  mappings:
+    - when: { field: action.type, op: eq, value: wire_transfer }
+      level: HIGH
+  escalate_at: [CRITICAL]

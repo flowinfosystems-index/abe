@@ -1,0 +1,72 @@
+# Abe pack: subscriptions. Agents signing up for, upgrading or cancelling SaaS and other recurring charges.
+# Docs: https://fjp.flowinfo.co/abe    Edit the amounts to match your business, then: abe validate-policy <file>
+# Matches subscribe, create_subscription, upgrade_plan, start_trial, renew_subscription, cancel_subscription.
+# action.amount is the recurring charge per billing period; action.interval is "month" or "year".
+version: "0.1"
+policy_id: pack-subscriptions
+policy_version: "2026-11-26"
+
+defaults:
+  unmatched: ESCALATE
+
+rules:
+  - id: annual_commitment
+    description: Annual plans lock in a year of spend and need a person
+    when:
+      all:
+        - { field: action.type, op: in, value: [subscribe, create_subscription, upgrade_plan, renew_subscription] }
+        - { field: action.interval, op: in, value: [year, yearly, annual, annually] }
+    decision: ESCALATE
+    reason_code: HUMAN_APPROVAL_REQUIRED
+
+  - id: subscription_review
+    description: New recurring charges above $50 per period need judgment
+    when:
+      all:
+        - { field: action.type, op: in, value: [subscribe, create_subscription, upgrade_plan, renew_subscription] }
+        - { field: action.amount, op: gt, value: 50 }
+    decision: ESCALATE
+    reason_code: FINANCIAL_THRESHOLD_EXCEEDED
+
+  - id: trial_converts
+    description: A trial that turns into a paid plan needs judgment
+    when:
+      all:
+        - { field: action.type, op: eq, value: start_trial }
+        - { field: action.auto_renews, op: eq, value: true }
+    decision: ESCALATE
+    reason_code: USER_CONFIRMATION_REQUIRED
+
+  - id: cancel
+    description: Cancelling can lose data or a grandfathered price; a person confirms
+    when: { field: action.type, op: in, value: [cancel_subscription, downgrade_plan] }
+    decision: ESCALATE
+    reason_code: USER_CONFIRMATION_REQUIRED
+
+  - id: subscription_no_amount
+    when:
+      all:
+        - { field: action.type, op: in, value: [subscribe, create_subscription, upgrade_plan, renew_subscription] }
+        - { field: action.amount, op: not_exists }
+    decision: ESCALATE
+    reason_code: EVIDENCE_MISSING
+
+  - id: subscription_routine
+    description: Monthly charges of $50 or less go through
+    when:
+      all:
+        - { field: action.type, op: in, value: [subscribe, create_subscription, upgrade_plan, renew_subscription] }
+        - { field: action.amount, op: lte, value: 50 }
+        - not: { field: action.interval, op: in, value: [year, yearly, annual, annually] }
+    decision: ACT
+
+  - id: free_trial
+    when:
+      all:
+        - { field: action.type, op: eq, value: start_trial }
+        - not: { field: action.auto_renews, op: eq, value: true }
+    decision: ACT
+
+  - id: subscriptions_read_only
+    when: { field: action.type, op: in, value: [list_subscriptions, get_subscription, get_invoice, list_plans] }
+    decision: ACT
