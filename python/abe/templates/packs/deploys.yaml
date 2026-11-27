@@ -1,0 +1,62 @@
+# Abe pack: deploys. Coding and ops agents shipping code: staging is free, production needs a person, force pushes are blocked.
+# Docs: https://fjp.flowinfo.co/abe    Edit to match your setup, then: abe validate-policy <file>
+# Matches deploy, rollback, run_migration, merge_pull_request, git_push, restart_service, scale_service.
+version: "0.1"
+policy_id: pack-deploys
+policy_version: "2026-11-26"
+
+defaults:
+  unmatched: ESCALATE
+
+rules:
+  - id: force_push
+    description: No force pushes from an agent
+    when:
+      all:
+        - { field: action.type, op: in, value: [git_push, push] }
+        - { field: action.force, op: eq, value: true }
+    decision: BLOCK
+    reason_code: HARD_POLICY_VIOLATION
+
+  - id: production_change
+    description: Anything that touches production needs a person
+    when:
+      all:
+        - { field: action.type, op: in, value: [deploy, rollback, run_migration, restart_service, scale_service] }
+        - { field: action.environment, op: in, value: [production, prod, live] }
+    decision: ESCALATE
+    reason_code: HUMAN_APPROVAL_REQUIRED
+
+  - id: merge_to_main
+    description: Merging to the main branch needs a person
+    when:
+      all:
+        - { field: action.type, op: eq, value: merge_pull_request }
+        - { field: action.base, op: in, value: [main, master, production] }
+    decision: ESCALATE
+    reason_code: HUMAN_APPROVAL_REQUIRED
+
+  - id: non_production
+    description: Staging, preview and dev environments go through
+    when:
+      all:
+        - { field: action.type, op: in, value: [deploy, rollback, run_migration, restart_service, scale_service] }
+        - { field: action.environment, op: in, value: [staging, stage, preview, dev, development, test] }
+    decision: ACT
+
+  - id: feature_branch
+    description: Pushing or merging feature branches goes through
+    when:
+      any:
+        - all:
+            - { field: action.type, op: in, value: [git_push, push] }
+            - not: { field: action.force, op: eq, value: true }
+            - { field: action.branch, op: not_in, value: [main, master, production] }
+        - all:
+            - { field: action.type, op: eq, value: merge_pull_request }
+            - { field: action.base, op: not_in, value: [main, master, production] }
+    decision: ACT
+
+  - id: deploys_read_only
+    when: { field: action.type, op: in, value: [get_logs, get_status, list_deployments, run_tests, get_metrics] }
+    decision: ACT

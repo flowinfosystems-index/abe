@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "abe-ai"
-version = "0.2.5"
+version = "0.2.6"
 description = "Abe: one control point before an AI agent acts. Deterministic ACT / BLOCK / ESCALATE with an immutable Judgment-Grounded Record. Local, offline, no account."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -45,7 +45,7 @@ packages = ["abe", "abe.stores", "abe.conformance", "abe.integrations"]
 license-files = ["LICENSE", "NOTICE"]
 
 [tool.setuptools.package-data]
-abe = ["templates/*", "py.typed"]
+abe = ["templates/*", "templates/packs/*", "py.typed"]
 "abe.conformance" = ["fixtures/*.json", "fixtures/policies/*.yaml"]
 
 [tool.pytest.ini_options]

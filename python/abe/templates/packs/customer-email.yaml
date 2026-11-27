@@ -1,0 +1,60 @@
+# Abe pack: customer-email. Messages agents send to customers: drafts go through, bulk sends and promises need a person.
+# Docs: https://fjp.flowinfo.co/abe    Edit to match your business, then: abe validate-policy <file>
+# Matches send_email, send_message, reply_to_customer, send_sms, draft_email.
+# Text checks are case sensitive; add the spellings your agents use.
+version: "0.1"
+policy_id: pack-customer-email
+policy_version: "2026-11-26"
+
+defaults:
+  unmatched: ESCALATE
+
+rules:
+  - id: drafts
+    description: Drafts never leave the building
+    when: { field: action.type, op: in, value: [draft_email, create_draft, draft_reply] }
+    decision: ACT
+
+  - id: bulk_send
+    description: Sending to more than 25 people at once needs a person
+    when:
+      all:
+        - { field: action.type, op: in, value: [send_email, send_message, reply_to_customer, send_sms] }
+        - { field: action.recipient_count, op: gt, value: 25 }
+    decision: ESCALATE
+    reason_code: HUMAN_APPROVAL_REQUIRED
+
+  - id: commitments
+    description: Messages that promise money, credits or legal outcomes need a person
+    when:
+      all:
+        - { field: action.type, op: in, value: [send_email, send_message, reply_to_customer, send_sms] }
+        - any:
+            - { field: action.body, op: contains, value: refund }
+            - { field: action.body, op: contains, value: Refund }
+            - { field: action.body, op: contains, value: credit }
+            - { field: action.body, op: contains, value: guarantee }
+            - { field: action.body, op: contains, value: compensat }
+            - { field: action.body, op: contains, value: legal }
+            - { field: action.body, op: contains, value: lawyer }
+            - { field: action.body, op: contains, value: lawsuit }
+    decision: ESCALATE
+    reason_code: HIGH_CONSEQUENCE_ACTION
+
+  - id: routine_send
+    description: Ordinary one-to-one replies go through
+    when:
+      all:
+        - { field: action.type, op: in, value: [send_email, send_message, reply_to_customer, send_sms] }
+        - not: { field: action.recipient_count, op: gt, value: 25 }
+        - not:
+            any:
+              - { field: action.body, op: contains, value: refund }
+              - { field: action.body, op: contains, value: Refund }
+              - { field: action.body, op: contains, value: credit }
+              - { field: action.body, op: contains, value: guarantee }
+              - { field: action.body, op: contains, value: compensat }
+              - { field: action.body, op: contains, value: legal }
+              - { field: action.body, op: contains, value: lawyer }
+              - { field: action.body, op: contains, value: lawsuit }
+    decision: ACT
