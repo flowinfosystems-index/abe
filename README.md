@@ -25,7 +25,7 @@ at no cost, forever.
 - **Stops expensive mistakes**: duplicate payments, over-budget purchases, force-pushes to `main`, `DROP TABLE` in production.
 - **Same answer every time**: plain YAML rules you can read, test, and replay against past decisions before going live.
 - **Proof for auditors**: every decision gets a hash-verified record (optionally Ed25519-signed) showing which rule fired and why.
-- **Works with any agent**: Python, TypeScript, a local HTTP sidecar, Docker, or MCP (Claude, Cursor and other MCP clients).
+- **Works with any agent**: one line for the Claude Agent SDK, LangChain / LangGraph and the OpenAI Agents SDK; a decorator for any Python function; TypeScript, a local HTTP sidecar, Docker, or MCP (Claude, Cursor and other MCP clients).
 - **No-risk rollout**: shadow mode runs beside your current approval process and shows where Abe would agree.
 - **Fails closed**: bad input or a broken rule returns `ESCALATE`, never `ACT`.
 
@@ -85,6 +85,45 @@ options = ClaudeAgentOptions(hooks=abe_hooks(Abe("abe-policy.yaml"), agent_id="o
 Every tool call is checked before it runs. BLOCK → `deny` with Abe's reason; ESCALATE → `deny`, `ask` or `defer`
 (hand it to a person); ACT → your normal permissions. Tool inputs are action fields (`action.command`,
 `action.amount`). See [`examples/claude_agent_sdk`](examples/claude_agent_sdk).
+
+## LangChain and LangGraph
+
+```python
+from langchain.agents import create_agent
+from abe.integrations.langchain import AbeMiddleware
+
+agent = create_agent(model, tools, middleware=[AbeMiddleware(Abe("abe-policy.yaml"), agent_id="ops-agent")])
+```
+
+Every tool call is checked before it runs. BLOCK and ESCALATE return an error `ToolMessage` with Abe's reason, so
+the model can pick another approach. `escalate="interrupt"` pauses the graph instead so a person can approve
+(`Command(resume="approve")`). Needs LangChain 1.0+: `pip install "abe-ai[langchain]"`.
+
+## OpenAI Agents SDK
+
+```python
+from agents import Agent
+from abe.integrations.openai_agents import gate_tools
+
+agent = Agent(name="ops", tools=gate_tools(Abe("abe-policy.yaml"), [pay_invoice, delete_rows]))
+```
+
+Adds an Abe tool guardrail to each function tool. BLOCK and ESCALATE replace the tool result with Abe's reason;
+`escalate="raise"` stops the run so your code can hand the call to a person. `pip install "abe-ai[openai-agents]"`.
+
+## Any Python function
+
+```python
+from abe.integrations.guard import guard
+
+@guard(abe, action_type="purchase", agent_id="procurement-agent")
+def buy(item: str, amount: float) -> str:
+    ...
+```
+
+The call's arguments become action fields. BLOCK raises `AbeBlocked`, ESCALATE raises `AbeEscalated`, or pass
+`on_deny="return"` to hand Abe's reason back as the result. Keeps the function's name, docstring and signature,
+so framework tool decorators that read them (LangChain `@tool`, for one) still work on top of it.
 
 ## TypeScript
 
@@ -162,6 +201,9 @@ When the agreement rate is where you want it, drop `mode="shadow"` and Abe enfor
 | Local HTTP sidecar | `abe serve --policy abe-policy.yaml` → `POST http://127.0.0.1:8787/v1/check` (any language) |
 | Docker sidecar | `docker run -e ABE_TOKEN=… -v $PWD:/policy:ro -p 127.0.0.1:8787:8787 ghcr.io/flowinfosystems-index/abe` |
 | Claude Agent SDK hook | `pip install "abe-ai[claude]"` → `ClaudeAgentOptions(hooks=abe_hooks(abe))` ([example](examples/claude_agent_sdk)) |
+| LangChain / LangGraph | `pip install "abe-ai[langchain]"` → `create_agent(..., middleware=[AbeMiddleware(abe)])` |
+| OpenAI Agents SDK | `pip install "abe-ai[openai-agents]"` → `Agent(tools=gate_tools(abe, tools))` |
+| Any Python function | `@guard(abe, action_type="purchase")` |
 | MCP server | `pip install "abe-ai[mcp]"` → `abe mcp --policy /abs/abe-policy.yaml` (tool: `fjp_check_action`) |
 | + Flow on escalations | add `--resolver flow` (or `ABE_RESOLVER=flow`) with `FLOW_API_KEY` to `check`, `serve`, `mcp` or the Docker image |
 
